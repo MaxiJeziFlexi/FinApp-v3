@@ -1,0 +1,5 @@
+1. uvicorn main:app --host 127.0.0.1 --port 8000 --reload reload servera aplikacji
+
+2. node server.js
+3.npm run dev
+4kill -9 (numery) zabij serwer

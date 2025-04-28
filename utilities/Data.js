@@ -1,101 +1,54 @@
-export const MonthlyShipments = [
-    {
-      id: 1,
-      date: 'Oct 22',
-      shipments: 10000,
-      vehicles: 5000,
-    },
-    {
-      id: 2,
-      date: 'Oct 23',
-      shipments: 15000,
-      vehicles: 10000,
-    },
-    {
-      id: 3,
-      date: 'Oct 24',
-      shipments: 30000,
-      vehicles: 10000,
-    },
-    {
-      id: 4,
-      date: 'Oct 25',
-      shipments: 60000,
-      vehicles: 15000,
-    },
-    {
-      id: 5,
-      date: 'Oct 26',
-      shipments: 50000,
-      vehicles: 10000,
-    },
-    {
-      id: 6,
-      date: 'Oct 27',
-      shipments: 20000,
-      vehicles: 10000,
-    },
-    {
-      id: 7,
-      date: 'Oct 28',
-      shipments: 30000,
-      vehicles: 5000,
-    },
-    {
-      id: 8,
-      date: 'Oct 29',
-      shipments: 50000,
-      vehicles: 40000,
-    },
-  ];
+export const fetchFinancialData = async () => {
+  try {
+    // Fetch data from relevant endpoints
+    const [accountBalancesRes, loansRes, investmentsRes, transactionsRes] = await Promise.all([
+      fetch("http://localhost:4001/account-balances"),
+      fetch("http://localhost:4001/credit-loans"),
+      fetch("http://localhost:4001/investments"),
+      fetch("http://localhost:4001/transactions"),
+    ]);
 
-  export const DailyShipment = [
-    {
-      id: 1,
-      time: '5:00am',
-      shipments: 5,
-      vehicles: 20,
-    },
-    {
-      id: 2,
-      time: '7:00am',
-      shipments: 10,
-      vehicles: 30,
-    },
-    {
-      id: 3,
-      time: '9:00am',
-      shipments: 8,
-      vehicles: 20,
-    },
-    {
-      id: 4,
-      time: '11:00pm',
-      shipments: 8,
-      vehicles: 25,
-    },
-    {
-      id: 5,
-      time: '1:00pm',
-      shipments: 10,
-      vehicles: 15,
-    },
-    {
-      id: 6,
-      time: '3:00pm',
-      shipments: 5,
-      vehicles: 15,
-    },
-    {
-      id: 7,
-      time: '5:00pm',
-      shipments: 5,
-      vehicles: 10,
-    },
-    {
-      id: 8,
-      time: '7:00pm',
-      shipments: 2,
-      vehicles: 5,
-    },
-  ];
+    const [accountBalances, loans, investments, transactions] = await Promise.all([
+      accountBalancesRes.json(),
+      loansRes.json(),
+      investmentsRes.json(),
+      transactionsRes.json(),
+    ]);
+
+    // Calculate totals
+    const totalSavings = accountBalances
+      .filter((account) => account.Type === "Savings")
+      .reduce((acc, curr) => acc + parseFloat(curr.Balance || 0), 0);
+
+    const totalChecking = accountBalances
+      .filter((account) => account.Type === "Checking")
+      .reduce((acc, curr) => acc + parseFloat(curr.Balance || 0), 0);
+
+    const totalCurrency = accountBalances
+      .filter((account) => account.Type === "Currency")
+      .reduce((acc, curr) => acc + parseFloat(curr.Balance || 0), 0);
+
+    const totalLoans = loans.reduce((acc, curr) => acc + parseFloat(curr.Amount || 0), 0);
+    const totalInvestments = investments.reduce((acc, curr) => acc + parseFloat(curr.AmountInvested || 0), 0);
+    const totalTransactions = transactions.reduce((acc, curr) => acc + parseFloat(curr.Amount || 0), 0);
+
+    return {
+      totalSavings,
+      totalChecking,
+      totalCurrency,
+      totalLoans,
+      totalInvestments,
+      totalTransactions,
+    };
+  } catch (error) {
+    console.error("Error fetching financial data:", error);
+    return {
+      totalSavings: 0,
+      totalChecking: 0,
+      totalCurrency: 0,
+      totalLoans: 0,
+      totalInvestments: 0,
+      totalTransactions: 0,
+    };
+  }
+};

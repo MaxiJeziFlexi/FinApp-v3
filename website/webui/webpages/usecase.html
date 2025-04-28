@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base href="/" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Przypadki użycia - DisiNow</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg-dark: #0F3057;
+            --color-bg-light: #1A4B78;
+            --color-primary: #00A896;
+            --color-text-light: #E0F5FF;
+            --color-text-muted: #88C2E6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(to bottom, var(--color-bg-dark), var(--color-bg-dark));
+            color: var(--color-text-light);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Navigation */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 1rem;
+        }
+
+        .nav-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--color-text-light);
+            text-decoration: none;
+        }
+
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--color-text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .nav-link:hover {
+            color: var(--color-text-light);
+        }
+
+        .nav-link.active {
+            color: var(--color-text-light);
+            position: relative;
+        }
+
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: var(--color-primary);
+        }
+
+        .launch-btn {
+            background-color: var(--color-primary);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .launch-btn:hover {
+            background-color: #02C39A;
+        }
+
+        /* Content Section */
+        .use-cases-section {
+            padding: 4rem 1rem;
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-align: center;
+            color: var(--color-text-light);
+        }
+
+        .page-subtitle {
+            text-align: center;
+            color: var(--color-text-muted);
+            margin-bottom: 3rem;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .tab-container {
+            margin-bottom: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: 2px solid var(--color-primary);
+            background-color: transparent;
+            color: var(--color-text-light);
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background-color: var(--color-primary);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .use-case {
+            background-color: var(--color-bg-light);
+            border-radius: 12px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(136, 194, 230, 0.2);
+        }
+
+        .use-case-title {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--color-text-light);
+        }
+
+        .user-story {
+            margin-bottom: 2rem;
+            padding-left: 1.5rem;
+            border-left: 3px solid var(--color-primary);
+            font-style: italic;
+            color: var(--color-text-muted);
+        }
+
+        .steps-container {
+            margin-top: 2rem;
+        }
+
+        .steps-title {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--color-text-light);
+        }
+
+        .steps-list {
+            list-style: none;
+        }
+
+        .step-item {
+            display: flex;
+            margin-bottom: 1rem;
+        }
+
+        .step-number {
+            background-color: var(--color-primary);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            color: var(--color-text-muted);
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .benefit-card {
+            background-color: rgba(0, 168, 150, 0.1);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .benefit-title {
+            color: var(--color-text-light);
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+
+        .benefit-description {
+            color: var(--color-text-muted);
+            font-size: 0.9rem;
+        }
+
+        .cta-container {
+            text-align: center;
+            margin-top: 4rem;
+        }
+
+        .section-title {
+            font-size: 1.75rem;
+            margin: 3rem 0 1.5rem;
+            color: var(--color-text-light);
+            text-align: center;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 4rem;
+            border-top: 1px solid rgba(136, 194, 230, 0.2);
+            color: var(--color-text-muted);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .nav-menu {
+                margin-top: 1rem;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+
+            .tabs {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .tab-btn {
+                width: 100%;
+                text-align: center;
+            }
+
+            .launch-btn {
+                margin-top: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <a href="/" class="nav-logo">DisiNow</a>
+            <div class="nav-menu">
+                <a href="/aboutus" class="nav-link">O Nas</a>
+                <a href="/team" class="nav-link">Zespół</a>
+                <a href="/usecase" class="nav-link active">Przypadki użycia</a>
+                <a href="/#features" class="nav-link">Funkcje</a>
+                <a href="http://localhost:3000/" class="launch-btn" id="app-launch-btn">Uruchom DisiNow</a>
+            </div>
+        </nav>
+
+        <!-- Use Cases Section -->
+        <section class="use-cases-section">
+            <h1 class="page-title">Jak DisiNow Działa Dla Ciebie</h1>
+            <p class="page-subtitle">
+                Odkryj, jak spersonalizowane porady DisiNow pomagają planować zakupy, oszczędzać na cele i budować dyscyplinę finansową.
+            </p>
+            
+            <div class="tab-container">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="personal">Planowanie zakupów</button>
+                    <button class="tab-btn" data-tab="investing">Oszczędzanie</button>
+                    <button class="tab-btn" data-tab="retirement">Cele wakacyjne</button>
+                    <button class="tab-btn" data-tab="debt">Wersja Premium</button>
+                </div>
+                
+                <!-- Personal Finance Tab -->
+                <div class="tab-content active" id="personal">
+                    <div class="use-case">
+                        <h2 class="use-case-title">Inteligentne planowanie zakupów</h2>
+                        <p class="user-story">
+                            "Jako osoba z nieregularnymi wydatkami, miałem trudności z utworzeniem realistycznego planu zakupów. DisiNow przeanalizowało moje wzorce wydatków i pomogło mi zbudować elastyczny budżet, który faktycznie działa z moim stylem życia."
+                        </p>
+                        
+                        <div class="steps-container">
+                            <h3 class="steps-title">Jak DisiNow pomaga:</h3>
+                            <ul class="steps-list">
+                                <li class="step-item">
+                                    <div class="step-number">1</div>
+                                    <div class="step-content">Bezpiecznie połącz swoje konta z DisiNow, aby uzyskać kompleksowy widok swoich finansów.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">2</div>
+                                    <div class="step-content">AI analizuje Twoje dochody i wzorce wydatków w czasie, identyfikując trendy i wahania.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">3</div>
+                                    <div class="step-content">Otrzymaj spersonalizowany plan zakupów, który dostosowuje się do zmian Twoich dochodów i priorytetów wydatków.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">4</div>
+                                    <div class="step-content">Otrzymuj alerty w czasie rzeczywistym i informacje, które pomogą Ci utrzymać kurs i dostosować plan w razie potrzeby.</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="use-case">
+                        <h2 class="use-case-title">Planowanie dużych zakupów</h2>
+                        <p class="user-story">
+                            "Wiedziałem, że potrzebuję nowego laptopa, ale znalezienie dodatkowych pieniędzy na oszczędzanie wydawało się niemożliwe. DisiNow zidentyfikowało małe kwoty, które mogłem konsekwentnie oszczędzać i zbudowało mój fundusz na zakup laptopa bez uczucia dyskomfortu."
+                        </p>
+                        
+                        <div class="steps-container">
+                            <h3 class="steps-title">Jak DisiNow pomaga:</h3>
+                            <ul class="steps-list">
+                                <li class="step-item">
+                                    <div class="step-number">1</div>
+                                    <div class="step-content">Ustaw swój cel zakupowy w oparciu o osobiste okoliczności i czynniki ryzyka.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">2</div>
+                                    <div class="step-content">DisiNow identyfikuje "bezpieczne do oszczędzania" kwoty z regularnych wydatków, które nie wpłyną na Twój styl życia.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">3</div>
+                                    <div class="step-content">Zautomatyzowane mikro-oszczędności budują Twój fundusz na zakupy stopniowo i konsekwentnie.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">4</div>
+                                    <div class="step-content">Śledź swoje postępy za pomocą wizualnych pulpitów i otrzymuj motywacyjne kamienie milowe.</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Investing Tab -->
+                <div class="tab-content" id="investing">
+                    <div class="use-case">
+                        <h2 class="use-case-title">Regularne oszczędzanie</h2>
+                        <p class="user-story">
+                            "Chciałem zacząć oszczędzać, ale czułem się przytłoczony wszystkimi opcjami. DisiNow pomogło mi zrozumieć moje możliwości i stworzyć plan oszczędzania zgodny z moimi długoterminowymi celami."
+                        </p>
+                        
+                        <div class="steps-container">
+                            <h3 class="steps-title">Jak DisiNow pomaga:</h3>
+                            <ul class="steps-list">
+                                <li class="step-item">
+                                    <div class="step-number">1</div>
+                                    <div class="step-content">Wypełnij spersonalizowaną ocenę, aby zrozumieć swój profil oszczędnościowy.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">2</div>
+                                    <div class="step-content">Otrzymaj dostosowane rekomendacje oszczędnościowe w oparciu o Twoje cele, harmonogram i możliwości.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">3</div>
+                                    <div class="step-content">Poznaj opcje oszczędzania z wyjaśnieniami wolnymi od żargonu i interaktywnymi narzędziami edukacyjnymi.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">4</div>
+                                    <div class="step-content">Monitoruj wydajność i otrzymuj sugestie dotyczące dostosowań, gdy zmieniają się warunki finansowe.</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="use-case">
+                        <h2 class="use-case-title">Oszczędzanie na określone cele</h2>
+                        <p class="user-story">
+                            "Chciałem, aby moje oszczędności odzwierciedlały moje wartości dotyczące przyszłości i odpowiedzialności. DisiNow pomogło mi identyfikować cele oszczędnościowe, które pasowały do moich wartości."
+                        </p>
+                        
+                        <div class="steps-container">
+                            <h3 class="steps-title">Jak DisiNow pomaga:</h3>
+                            <ul class="steps-list">
+                                <li class="step-item">
+                                    <div class="step-number">1</div>
+                                    <div class="step-content">Przeprowadź ocenę wartości, aby zidentyfikować czynniki środowiskowe, społeczne i osobiste, które są dla Ciebie najważniejsze.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">2</div>
+                                    <div class="step-content">Otrzymaj rekomendacje dla celów oszczędnościowych, które są zgodne zarówno z Twoimi wartościami, jak i celami finansowymi.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">3</div>
+                                    <div class="step-content">Przeglądaj raporty wpływu pokazujące, jak Twoje oszczędności przyczyniają się do pozytywnych zmian.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">4</div>
+                                    <div class="step-content">Porównuj metryki wydajności między różnymi celami oszczędnościowymi, aby podejmować świadome decyzje.</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Retirement Planning Tab -->
+                <div class="tab-content" id="retirement">
+                    <div class="use-case">
+                        <h2 class="use-case-title">Planowanie wakacji</h2>
+                        <p class="user-story">
+                            "Nie miałem pojęcia, czy oszczędzam wystarczająco na wakacje, zwłaszcza po wzięciu wolnego na dzieci. DisiNow spojrzało na całą moją sytuację i pokazało mi dokładnie, jakie korekty muszę wprowadzić."
+                        </p>
+                        
+                        <div class="steps-container">
+                            <h3 class="steps-title">Jak DisiNow pomaga:</h3>
+                            <ul class="steps-list">
+                                <li class="step-item">
+                                    <div class="step-number">1</div>
+                                    <div class="step-content">Wprowadź swoje aktualne oszczędności, dochody i harmonogram, w tym wszelkie przerwy.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">2</div>
+                                    <div class="step-content">AI prognozuje Twoją gotowość na wakacje w oparciu o obecną trajektorię i czynniki kosztowe.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">3</div>
+                                    <div class="step-content">Otrzymaj konkretne rekomendacje, aby poprawić perspektywy wakacyjne z regulowanymi parametrami.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">4</div>
+                                    <div class="step-content">Otrzymaj spersonalizowane strategie nadrabiania, jeśli jesteś w tyle, uwzględniając przerwy w pracy i zmieniające się dochody.</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Debt Management Tab -->
+                <div class="tab-content" id="debt">
+                    <div class="use-case">
+                        <h2 class="use-case-title">Kompleksowe zarządzanie finansami</h2>
+                        <p class="user-story">
+                            "Miałem wiele kont i nie wiedziałem, jak efektywnie zarządzać swoimi finansami. DisiNow stworzyło strategiczny plan zarządzania, który pozwolił mi zaoszczędzić tysiące złotych i znacznie poprawić moją sytuację finansową."
+                        </p>
+                        
+                        <div class="steps-container">
+                            <h3 class="steps-title">Jak DisiNow pomaga:</h3>
+                            <ul class="steps-list">
+                                <li class="step-item">
+                                    <div class="step-number">1</div>
+                                    <div class="step-content">Dodaj wszystkie swoje konta, aby stworzyć kompletny obraz Twoich zobowiązań i kosztów.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">2</div>
+                                    <div class="step-content">Porównaj wiele strategii zarządzania finansami, aby znaleźć podejście, które najlepiej sprawdzi się w Twojej sytuacji.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">3</div>
+                                    <div class="step-content">Otrzymaj miesięczny plan zarządzania pokazujący dokładnie, gdzie alokować dodatkowe płatności dla maksymalnego wpływu.</div>
+                                </li>
+                                <li class="step-item">
+                                    <div class="step-number">4</div>
+                                    <div class="step-content">Śledź swoje postępy za pomocą wizualnych wykresów i świętuj kamienie milowe po drodze.</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="cta-container">
+                <h2 class="section-title">Gotowy, aby przekształcić swoją przyszłość finansową?</h2>
+                <a href="http://localhost:3000/" class="launch-btn">Rozpocznij z DisiNow</a>
+            </div>
+        </section>
+        
+        <!-- Footer -->
+        <footer class="footer">
+            <p>© 2025 DisiNow. Wszelkie prawa zastrzeżone.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Handle tabs
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                tabBtns.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                btn.classList.add('active');
+                const tabId = btn.dataset.tab;
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,24 +1,31 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react';
 
 const UseDarkMode = () => {
-    const [theme, setTheme] = useState(
-        typeof window !== "undefined" ? localStorage.theme : "dark"
-      );
-      const colorTheme = theme === "dark" ? "light" : "dark";
-    
-      useEffect(() => {
-        const root = window.document.documentElement;
-    
-        root.classList.remove(colorTheme);
-        root.classList.add(theme);
-    
-        if (typeof window !== "undefined") {
-          localStorage.setItem("theme", theme);
-        }
-      }, [colorTheme, theme]);
-    
-      return [colorTheme, setTheme];
-    
-}
+  // Initialize theme based on localStorage or default to "dark"
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("theme") || "dark";
+    }
+    return "dark";
+  });
 
-export default UseDarkMode
+  useEffect(() => {
+    const root = window.document.documentElement;
+
+    // Remove the current theme class and add the new one
+    root.classList.remove(theme === "dark" ? "light" : "dark");
+    root.classList.add(theme);
+
+    // Save the current theme in localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem("theme", theme);
+    }
+  }, [theme]);
+
+  // Return the opposite of the current theme for toggling
+  const colorTheme = theme === "dark" ? "light" : "dark";
+
+  return [colorTheme, setTheme];
+};
+
+export default UseDarkMode;

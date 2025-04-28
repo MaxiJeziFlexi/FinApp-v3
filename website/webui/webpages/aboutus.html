@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base href="/" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O Nas - DisiNow</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg-dark: #0F3057;
+            --color-bg-light: #1A4B78;
+            --color-primary: #00A896;
+            --color-text-light: #E0F5FF;
+            --color-text-muted: #88C2E6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(to bottom, var(--color-bg-dark), var(--color-bg-dark));
+            color: var(--color-text-light);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Navigation */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 1rem;
+        }
+
+        .nav-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--color-text-light);
+            text-decoration: none;
+        }
+
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--color-text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .nav-link:hover {
+            color: var(--color-text-light);
+        }
+
+        .nav-link.active {
+            color: var(--color-text-light);
+            position: relative;
+        }
+
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: var(--color-primary);
+        }
+
+        .launch-btn {
+            background-color: var(--color-primary);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .launch-btn:hover {
+            background-color: #02C39A;
+        }
+
+        /* Content Section */
+        .about-section {
+            padding: 4rem 1rem;
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            color: var(--color-text-light);
+        }
+
+        .content-card {
+            background-color: var(--color-bg-light);
+            border-radius: 12px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(136, 194, 230, 0.2);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--color-text-light);
+        }
+
+        .text-content {
+            color: var(--color-text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .mission-vision {
+            display: flex;
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .mission-card, .vision-card {
+            flex: 1;
+            background-color: rgba(0, 168, 150, 0.1);
+            padding: 2rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--color-primary);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: var(--color-text-light);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 4rem;
+            border-top: 1px solid rgba(136, 194, 230, 0.2);
+            color: var(--color-text-muted);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .nav-menu {
+                margin-top: 1rem;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .mission-vision {
+                flex-direction: column;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+
+            .launch-btn {
+                margin-top: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <a href="/" class="nav-logo">DisiNow</a>
+            <div class="nav-menu">
+                <a href="/aboutus" class="nav-link active">O Nas</a>
+                <a href="/team" class="nav-link">Zespół</a>
+                <a href="/usecase" class="nav-link">Przypadki użycia</a>
+                <a href="/#features" class="nav-link">Funkcje</a>
+                <a href="http://localhost:3000/" class="launch-btn" id="app-launch-btn">Uruchom DisiNow</a>
+            </div>
+        </nav>
+
+        <!-- About Section -->
+        <section class="about-section">
+            <h1 class="page-title">O DisiNow</h1>
+            
+            <div class="content-card">
+                <h2 class="section-title">Nasza Historia</h2>
+                <p class="text-content">
+                    DisiNow powstało w 2023 roku z jasną wizją: promować dyscyplinę finansową i pomóc użytkownikom osiągać swoje cele finansowe. Nasz zespół ekspertów finansowych i specjalistów AI połączył siły, aby stworzyć rozwiązanie, które pomaga w planowaniu zakupów i oszczędzaniu na cele krótkoterminowe.
+                </p>
+                <p class="text-content">
+                    To, co zaczęło się jako mały projekt, przekształciło się w kompleksową platformę finansową, która pomogła tysiącom użytkowników zarządzać swoimi finansami, wyznaczać znaczące cele i osiągać niezależność finansową. Nasze podejście oparte na sztucznej inteligencji zapewnia, że każda porada jest dostosowana do Twojej konkretnej sytuacji i potrzeb.
+                </p>
+                
+                <div class="mission-vision">
+                    <div class="mission-card">
+                        <h3 class="card-title">Nasza Misja</h3>
+                        <p class="text-content">
+                            Zapewnienie użytkownikom narzędzi, wiedzy i pewności siebie potrzebnych do budowania dyscypliny finansowej i osiągania celów finansowych, niezależnie od punktu wyjścia czy pochodzenia.
+                        </p>
+                    </div>
+                    <div class="vision-card">
+                        <h3 class="card-title">Nasza Wizja</h3>
+                        <p class="text-content">
+                            Świat, w którym dyscyplina finansowa jest dostępna dla wszystkich, gdzie ludzie czują się upoważnieni do podejmowania świadomych decyzji finansowych, a technologia służy jako katalizator dobrobytu i niezależności finansowej.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content-card">
+                <h2 class="section-title">Co Nas Wyróżnia</h2>
+                <p class="text-content">
+                    <strong>Personalizacja oparta na AI:</strong> Nasze zaawansowane algorytmy analizują Twoje dane finansowe, aby dostarczyć spersonalizowane rekomendacje, które ewoluują wraz z Twoją podróżą finansową.
+                </p>
+                <p class="text-content">
+                    <strong>Nastawienie na dyscyplinę:</strong> Rozumiemy, że kluczem do sukcesu finansowego jest dyscyplina i konsekwencja, dlatego nasze narzędzia wspierają Cię w budowaniu zdrowych nawyków.
+                </p>
+                <p class="text-content">
+                    <strong>Holistyczne spojrzenie na finanse:</strong> Nie koncentrujemy się tylko na budżetowaniu czy inwestowaniu — patrzymy na cały obraz finansowy, aby stworzyć kompleksowy plan.
+                </p>
+                <p class="text-content">
+                    <strong>Dostępna edukacja:</strong> Finansowy żargon może być onieśmielający. Rozbijamy złożone koncepcje na proste, praktyczne porady.
+                </p>
+            </div>
+        </section>
+        
+        <!-- Footer -->
+        <footer class="footer">
+            <p>© 2025 DisiNow. Wszelkie prawa zastrzeżone.</p>
+        </footer>
+    </div>
+</body>
+</html>

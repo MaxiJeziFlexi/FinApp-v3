@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base href="/" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DisiNow - Buduj dyscyplinę finansową</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg-dark: #0F3057;
+            --color-bg-light: #1A4B78;
+            --color-primary: #00A896;
+            --color-text-light: #E0F5FF;
+            --color-text-muted: #88C2E6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(to bottom, var(--color-bg-dark), var(--color-bg-dark));
+            color: var(--color-text-light);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Navigation */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 1rem;
+        }
+
+        .nav-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--color-text-light);
+            text-decoration: none;
+        }
+
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--color-text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .nav-link:hover {
+            color: var(--color-text-light);
+        }
+
+        .nav-link.active {
+            color: var(--color-text-light);
+            position: relative;
+        }
+
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: var(--color-primary);
+        }
+
+        .launch-btn {
+            background-color: var(--color-primary);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .launch-btn:hover {
+            background-color: #02C39A;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 4rem 1rem;
+        }
+
+        .robot-model {
+            width: 250px;
+            height: 250px;
+            margin: 0 auto 2rem;
+            background: var(--color-primary);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 30px rgba(0, 168, 150, 0.5);
+        }
+
+        .robot-avatar {
+            width: 60%;
+            height: 60%;
+            color: white;
+            stroke-width: 1.5;
+        }
+
+        .headline {
+            font-size: 3rem;
+            color: var(--color-text-light);
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .subheadline {
+            font-size: 1.125rem;
+            color: var(--color-text-muted);
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+
+        .hero-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--color-text-muted);
+            border: 2px solid var(--color-text-muted);
+        }
+
+        /* Features Section */
+        .features {
+            display: flex;
+            justify-content: space-between;
+            gap: 2rem;
+            padding: 4rem 1rem;
+        }
+
+        .feature-card {
+            flex: 1;
+            background-color: var(--color-bg-light);
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+            transition: transform 0.3s ease;
+            border: 1px solid rgba(136, 194, 230, 0.2);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 168, 150, 0.2);
+        }
+
+        .feature-title {
+            color: var(--color-text-light);
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .feature-description {
+            color: var(--color-text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 4rem;
+            border-top: 1px solid rgba(136, 194, 230, 0.2);
+            color: var(--color-text-muted);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .nav-menu {
+                margin-top: 1rem;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .headline {
+                font-size: 2rem;
+            }
+
+            .features {
+                flex-direction: column;
+            }
+
+            .launch-btn {
+                margin-top: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <a href="/" class="nav-logo">DisiNow</a>
+            <div class="nav-menu">
+                <a href="/aboutus" class="nav-link">O Nas</a>
+                <a href="/team" class="nav-link">Zespół</a>
+                <a href="/usecase" class="nav-link">Przypadki użycia</a>
+                <a href="/#features" class="nav-link active">Funkcje</a>
+                <a href="http://localhost:3000/" class="launch-btn" id="app-launch-btn">Uruchom DisiNow</a>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="robot-model">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="robot-avatar">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 8v4l3 3"/>
+                    <path d="M12 2v2"/>
+                    <path d="M12 22v-2"/>
+                    <path d="M4 12H2"/>
+                    <path d="M22 12h-2"/>
+                </svg>
+            </div>
+            <h1 class="headline">Buduj dyscyplinę finansową</h1>
+            <p class="subheadline">Spersonalizowane porady pomagające planować zakupy, oszczędzać na cele i zarządzać finansami osobistymi.</p>
+            <div class="hero-buttons">
+                <a href="/usecase" class="btn btn-secondary">Dowiedz się więcej</a>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features" id="features">
+            <div class="feature-card">
+                <h2 class="feature-title">Planowanie zakupów</h2>
+                <p class="feature-description">Zarządzaj wydatkami z wyprzedzeniem i nie przekraczaj budżetu dzięki inteligentnemu planowaniu.</p>
+            </div>
+            <div class="feature-card">
+                <h2 class="feature-title">Cele oszczędnościowe</h2>
+                <p class="feature-description">Śledź postępy w oszczędzaniu na wakacje i inne cele krótkoterminowe.</p>
+            </div>
+            <div class="feature-card">
+                <h2 class="feature-title">Wersja Premium</h2>
+                <p class="feature-description">Kompleksowe zarządzanie finansami osobistymi dla zaawansowanych użytkowników.</p>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>© 2025 DisiNow. Wszelkie prawa zastrzeżone.</p>
+        </footer>
+    </div>
+</body>
+</html>

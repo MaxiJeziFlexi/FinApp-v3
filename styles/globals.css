@@ -17,4 +17,25 @@ a {
 
 * {
   box-sizing: border-box;
-} 
+}
+
+/* Light mode styles */
+body {
+  background-color: #f9fafb; /* Light background */
+  color: #1f2937; /* Light text */
+}
+
+/* Dark mode styles */
+.dark body {
+  background-color: #1e293b; /* Dark background */
+  color: #e2e8f0; /* Dark text */
+}
+
+/* Example specific element overrides */
+.card {
+  background-color: #fff;
+}
+
+.dark .card {
+  background-color: #334155; /* Dark card background */
+}
