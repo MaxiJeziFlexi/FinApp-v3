@@ -1249,7 +1249,7 @@ return recommendations;
     doc.setFont('helvetica', 'normal');
     doc.text('Financial goal', 15, currentY);
     doc.setFont('helvetica', 'bold');
-    doc.text(getGoalDisplayName(currentAdvisor?.goal || userProfile?.financialGoal || 'general'), 70, currentY);
+    doc.text(mapGoalToName(currentAdvisor?.goal || userProfile?.financialGoal || 'general'), 70, currentY);
     
     currentY += 10;
     doc.setFont('helvetica', 'normal');
@@ -1280,8 +1280,7 @@ return recommendations;
     doc.setFont('helvetica', 'normal');
     doc.text('Specialization', 15, currentY);
     doc.setFont('helvetica', 'bold');
-    doc.text(getGoalDisplayName(currentAdvisor?.goal || 'general'), 70, currentY);
-    
+    doc.text(mapGoalToName(currentAdvisor?.goal || 'general'), 70, currentY);    
     // Add branding
     currentY = 270;
     if (reportOptions.brandStyle === 'pwc') {
@@ -1602,7 +1601,7 @@ return recommendations;
     doc.setTextColor(textColor, textColor, textColor);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text(getGoalDisplayName(currentAdvisor?.goal || userProfile?.financialGoal || 'general'), 
+    doc.text(mapGoalToName(currentAdvisor?.goal || userProfile?.financialGoal || 'general'), 
              startX + boxWidth + margin + 5, currentY + 25);
     
     currentY += boxHeight + margin;
@@ -1843,7 +1842,7 @@ return recommendations;
     doc.setTextColor(textColor, textColor, textColor);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text(getGoalDisplayName(currentAdvisor?.goal || 'general'), startX + 5, currentY + 25);
+    doc.text(mapGoalToName(currentAdvisor?.goal || 'general'), startX + 5, currentY + 25);
     
     // Add branding footer
     addPwcFooter(doc, colorScheme, 2);
@@ -2314,7 +2313,7 @@ return recommendations;
     let introText = "Based on our comprehensive analysis of your financial situation and objectives, we recommend the following strategic actions. These recommendations are designed to optimize your financial outcomes and progress toward your goals.";
     
     if (currentAdvisor?.goal) {
-      introText += ` The recommendations specifically address your ${getGoalDisplayName(currentAdvisor.goal).toLowerCase()} objective.`;
+      introText += ` The recommendations specifically address your ${mapGoalToName(currentAdvisor.goal).toLowerCase()} objective.`;
     }
     
     const introLines = doc.splitTextToSize(introText, 180);
@@ -2768,7 +2767,7 @@ const addPwcFooter = (doc, colorScheme, pageNumber) => {
 /**
  * Get display name for financial goal
  */
-const getGoalDisplayName = (goal) => {
+const mapGoalToName = (goal) => {
   const goalMap = {
     'emergency_fund': 'Emergency Fund',
     'debt_reduction': 'Debt Reduction',

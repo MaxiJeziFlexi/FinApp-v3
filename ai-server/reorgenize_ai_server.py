@@ -91,7 +91,6 @@ FILE_MAPPING = {
     
     # Scripts
     'generate_synthetic_data.py': 'scripts/generate_synthetic_data.py',
-    'reset_test_database.py ': 'scripts/reset_test_database.py',
     'start_server.sh': 'scripts/start_server.sh',
     'load_synthetic_data.py': 'scripts/load_synthetic_data.py',
     

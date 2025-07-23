@@ -1,5 +1,5 @@
 const ExcelJS = require('exceljs');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const path = require('path');
 
 const hashPasswords = async () => {

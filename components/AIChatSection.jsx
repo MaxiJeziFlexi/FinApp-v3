@@ -44,8 +44,15 @@ import {
   TrendingUp,
   Save
 } from '@mui/icons-material';
+import decisionTreeService from '../utils/decisionTreeService';
 import jsPDF from 'jspdf'; // Dodano bibliotekę jsPDF do generowania PDF
-
+import useSpeechRecognition from './aichat/hooks/useSpeechRecognition';
+import FinancialProgressChart from './aichat/FinancialProgressChart';
+import AchievementNotification from './AICHAT/AchievementNotification';
+import OnboardingForm from './AICHAT/OnboardingForm.jsx';
+import AdvisorSelection from './AICHAT/AdvisorSelection.jsx';
+import DecisionTreeView from './AICHAT/DecisionTreeView.jsx';
+import ChatWindow from './AICHAT/ChatWindow.jsx';
 // Rejestracja komponentów Chart.js
 ChartJS.register(
   CategoryScale,
@@ -57,6 +64,7 @@ ChartJS.register(
   Legend,
   Filler
 );
+
 
 // Opcje dla pól formularza onboardingowego
 const incomeOptions = [
@@ -174,7 +182,7 @@ const getThirdStepForGoal = (goalType) => {
 };
 
 // Helper function to get display name for goals
-const getGoalDisplayName = (goal) => {
+const mapGoalToName = (goal) => {
   switch(goal) {
     case 'emergency_fund': return 'Fundusz awaryjny';
     case 'debt_reduction': return 'Redukcja zadłużenia';
@@ -185,24 +193,9 @@ const getGoalDisplayName = (goal) => {
     default: return 'Ogólne doradztwo';
   }
 };
+console.log('analyzeSentiment:', analyzeSentiment);
 
-// Mock functions for sentiment analysis
-const analyzeSentiment = async (text) => {
-  await new Promise(resolve => setTimeout(resolve, 300));
-  const lowerText = text.toLowerCase();
-  const negativeWords = ['problem', 'trudno', 'stres', 'martwi', 'obawa', 'nie dam rady', 'boję'];
-  const positiveWords = ['super', 'świetnie', 'dobrze', 'cieszy', 'podoba', 'wspaniały', 'dziękuję'];
-  let sentiment = 'neutral';
-  let confidence = 0.5;
-  if (negativeWords.some(word => lowerText.includes(word))) {
-    sentiment = 'negative';
-    confidence = 0.7;
-  } else if (positiveWords.some(word => lowerText.includes(word))) {
-    sentiment = 'positive';
-    confidence = 0.7;
-  }
-  return { sentiment, confidence };
-};
+// Now using the enhanced sentiment analysis service from utils/sentimentAnalysis.js
 
 // Mock functions for chat history
 const getChatHistory = async (advisorId) => {
@@ -241,7 +234,7 @@ const getUserProfile = async () => {
 };
 
 // Enhanced chat functionality to work with the decision tree
-const sendAIMessage = async (message, advisorId, userProfile, decisionPath, sentimentData = null) => {
+const sendEnhancedAIMessage = async (message, advisorId, userProfile, decisionPath, sentimentData = null) => {
   try {
     // Determine the correct advisory type based on advisor ID
     const advisor = ADVISORS.find(a => a.id === advisorId) || ADVISORS[0];
@@ -348,7 +341,7 @@ const sendAIMessage = async (message, advisorId, userProfile, decisionPath, sent
     
     return response;
   } catch (error) {
-    console.error('Error in enhanced sendAIMessage:', error);
+    console.error('Error in enhanced sendEnhancedAIMessage:', error);
     // Fallback to basic response
     return {
       message: "Przepraszam, wystąpił problem z uzyskaniem odpowiedzi. Czy możesz powtórzyć swoje pytanie?",
@@ -357,583 +350,7 @@ const sendAIMessage = async (message, advisorId, userProfile, decisionPath, sent
   }
 };
 
-// Decision tree service with improved implementation
-const decisionTreeService = {
-  processDecisionStep: async (advisorId, step, decisionPath) => {
-    try {
-      // Create the request body
-      const requestBody = {
-        user_id: 1, // Default user ID, in a real app would be the actual user ID
-        advisor_id: advisorId,
-        step: step,
-        decision_path: decisionPath
-      };
-
-      // In a real implementation, this would be an API call to the backend
-      // const response = await fetch('/api/financial-tree/process-step', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(requestBody)
-      // });
-      // return await response.json();
-
-      // For now, simulate API response based on mock data
-      console.log(`Processing step ${step} for advisor ${advisorId}`);
-      
-      // Map advisor ID to appropriate financial goal
-      let financialGoal;
-      if (advisorId === "budget_planner") {
-        financialGoal = "emergency_fund";
-      } else if (advisorId === "savings_strategist") {
-        financialGoal = "home_purchase";
-      } else if (advisorId === "execution_expert") {
-        financialGoal = "debt_reduction";
-      } else if (advisorId === "optimization_advisor") {
-        financialGoal = "retirement";
-      } else {
-        financialGoal = "emergency_fund"; // Default
-      }
-
-      // Simulate tree structure based on goal
-      if (step === 0) {
-        // First question depends on the advisor/goal
-        if (financialGoal === "emergency_fund") {
-          return [
-            {
-              id: "short",
-              text: "W ciągu 6 miesięcy",
-              value: "short",
-              question: "W jakim czasie chcesz zgromadzić fundusz awaryjny?"
-            },
-            {
-              id: "medium",
-              text: "W ciągu roku",
-              value: "medium",
-              question: "W jakim czasie chcesz zgromadzić fundusz awaryjny?"
-            },
-            {
-              id: "long",
-              text: "W ciągu 1-2 lat",
-              value: "long",
-              question: "W jakim czasie chcesz zgromadzić fundusz awaryjny?"
-            }
-          ];
-        } else if (financialGoal === "debt_reduction") {
-          return [
-            {
-              id: "credit_card",
-              text: "Karty kredytowe / Chwilówki (wysokie oprocentowanie)",
-              value: "credit_card",
-              question: "Jaki rodzaj zadłużenia chcesz spłacić w pierwszej kolejności?"
-            },
-            {
-              id: "consumer",
-              text: "Kredyty konsumpcyjne",
-              value: "consumer",
-              question: "Jaki rodzaj zadłużenia chcesz spłacić w pierwszej kolejności?"
-            },
-            {
-              id: "mortgage",
-              text: "Kredyt hipoteczny",
-              value: "mortgage",
-              question: "Jaki rodzaj zadłużenia chcesz spłacić w pierwszej kolejności?"
-            },
-            {
-              id: "multiple",
-              text: "Mam kilka różnych zobowiązań",
-              value: "multiple",
-              question: "Jaki rodzaj zadłużenia chcesz spłacić w pierwszej kolejności?"
-            }
-          ];
-        } else if (financialGoal === "home_purchase") {
-          return [
-            {
-              id: "short",
-              text: "W ciągu 1-2 lat",
-              value: "short",
-              question: "W jakim czasie planujesz zakup nieruchomości?"
-            },
-            {
-              id: "medium",
-              text: "W ciągu 3-5 lat",
-              value: "medium",
-              question: "W jakim czasie planujesz zakup nieruchomości?"
-            },
-            {
-              id: "long",
-              text: "W ciągu 5-10 lat",
-              value: "long",
-              question: "W jakim czasie planujesz zakup nieruchomości?"
-            }
-          ];
-        } else if (financialGoal === "retirement") {
-          return [
-            {
-              id: "early",
-              text: "Wcześniej niż wiek emerytalny",
-              value: "early",
-              question: "W jakim wieku planujesz przejść na emeryturę?"
-            },
-            {
-              id: "standard",
-              text: "W standardowym wieku emerytalnym",
-              value: "standard",
-              question: "W jakim wieku planujesz przejść na emeryturę?"
-            },
-            {
-              id: "late",
-              text: "Później niż wiek emerytalny",
-              value: "late",
-              question: "W jakim wieku planujesz przejść na emeryturę?"
-            }
-          ];
-        }
-      } else if (step === 1) {
-        // Second question depends on the goal
-        if (financialGoal === "emergency_fund") {
-          return [
-            {
-              id: "three",
-              text: "3 miesiące wydatków",
-              value: "three",
-              question: "Ile miesięcznych wydatków chcesz pokryć funduszem awaryjnym?"
-            },
-            {
-              id: "six",
-              text: "6 miesięcy wydatków",
-              value: "six",
-              question: "Ile miesięcznych wydatków chcesz pokryć funduszem awaryjnym?"
-            },
-            {
-              id: "twelve",
-              text: "12 miesięcy wydatków",
-              value: "twelve",
-              question: "Ile miesięcznych wydatków chcesz pokryć funduszem awaryjnym?"
-            }
-          ];
-        } else if (financialGoal === "debt_reduction") {
-          return [
-            {
-              id: "small",
-              text: "Do 10,000 zł",
-              value: "small",
-              question: "Jaka jest łączna kwota Twojego zadłużenia?"
-            },
-            {
-              id: "medium",
-              text: "10,000 - 50,000 zł",
-              value: "medium",
-              question: "Jaka jest łączna kwota Twojego zadłużenia?"
-            },
-            {
-              id: "large",
-              text: "50,000 - 200,000 zł",
-              value: "large",
-              question: "Jaka jest łączna kwota Twojego zadłużenia?"
-            },
-            {
-              id: "very_large",
-              text: "Powyżej 200,000 zł",
-              value: "very_large",
-              question: "Jaka jest łączna kwota Twojego zadłużenia?"
-            }
-          ];
-        } else if (financialGoal === "home_purchase") {
-          return [
-            {
-              id: "ten",
-              text: "10% (minimalne wymaganie)",
-              value: "ten",
-              question: "Ile procent wartości nieruchomości planujesz zgromadzić jako wkład własny?"
-            },
-            {
-              id: "twenty",
-              text: "20% (standard)",
-              value: "twenty",
-              question: "Ile procent wartości nieruchomości planujesz zgromadzić jako wkład własny?"
-            },
-            {
-              id: "thirty_plus",
-              text: "30% lub więcej",
-              value: "thirty_plus",
-              question: "Ile procent wartości nieruchomości planujesz zgromadzić jako wkład własny?"
-            },
-            {
-              id: "full",
-              text: "100% (zakup bez kredytu)",
-              value: "full",
-              question: "Ile procent wartości nieruchomości planujesz zgromadzić jako wkład własny?"
-            }
-          ];
-        } else if (financialGoal === "retirement") {
-          return [
-            {
-              id: "early",
-              text: "Początek kariery (20-35 lat)",
-              value: "early",
-              question: "Na jakim etapie życia zawodowego jesteś obecnie?"
-            },
-            {
-              id: "mid",
-              text: "Środek kariery (36-50 lat)",
-              value: "mid",
-              question: "Na jakim etapie życia zawodowego jesteś obecnie?"
-            },
-            {
-              id: "late",
-              text: "Późny etap kariery (51+ lat)",
-              value: "late",
-              question: "Na jakim etapie życia zawodowego jesteś obecnie?"
-            }
-          ];
-        }
-      } else if (step === 2) {
-        // Third question depends on the goal
-        if (financialGoal === "emergency_fund") {
-          return [
-            {
-              id: "automatic",
-              text: "Automatyczne odkładanie stałej kwoty",
-              value: "automatic",
-              question: "Jaki sposób oszczędzania preferujesz?"
-            },
-            {
-              id: "percentage",
-              text: "Odkładanie procentu dochodów",
-              value: "percentage",
-              question: "Jaki sposób oszczędzania preferujesz?"
-            },
-            {
-              id: "surplus",
-              text: "Odkładanie nadwyżek z budżetu",
-              value: "surplus",
-              question: "Jaki sposób oszczędzania preferujesz?"
-            }
-          ];
-        } else if (financialGoal === "debt_reduction") {
-          return [
-            {
-              id: "avalanche",
-              text: "Najpierw najwyżej oprocentowane (metoda lawiny)",
-              value: "avalanche",
-              question: "Jaką strategię spłaty zadłużenia preferujesz?"
-            },
-            {
-              id: "snowball",
-              text: "Najpierw najmniejsze kwoty (metoda kuli śnieżnej)",
-              value: "snowball",
-              question: "Jaką strategię spłaty zadłużenia preferujesz?"
-            },
-            {
-              id: "consolidation",
-              text: "Konsolidacja zadłużenia",
-              value: "consolidation",
-              question: "Jaką strategię spłaty zadłużenia preferujesz?"
-            },
-            {
-              id: "not_sure",
-              text: "Nie jestem pewien/pewna",
-              value: "not_sure",
-              question: "Jaką strategię spłaty zadłużenia preferujesz?"
-            }
-          ];
-        } else if (financialGoal === "home_purchase") {
-          return [
-            {
-              id: "small",
-              text: "Do 300,000 zł",
-              value: "small",
-              question: "Jaki jest Twój budżet na zakup nieruchomości?"
-            },
-            {
-              id: "medium",
-              text: "300,000 - 600,000 zł",
-              value: "medium",
-              question: "Jaki jest Twój budżet na zakup nieruchomości?"
-            },
-            {
-              id: "large",
-              text: "600,000 - 1,000,000 zł",
-              value: "large",
-              question: "Jaki jest Twój budżet na zakup nieruchomości?"
-            },
-            {
-              id: "very_large",
-              text: "Powyżej 1,000,000 zł",
-              value: "very_large",
-              question: "Jaki jest Twój budżet na zakup nieruchomości?"
-            }
-          ];
-        } else if (financialGoal === "retirement") {
-          return [
-            {
-              id: "ike_ikze",
-              text: "IKE/IKZE (indywidualne konta emerytalne)",
-              value: "ike_ikze",
-              question: "Jakie formy oszczędzania na emeryturę rozważasz?"
-            },
-            {
-              id: "investment",
-              text: "Własne inwestycje długoterminowe",
-              value: "investment",
-              question: "Jakie formy oszczędzania na emeryturę rozważasz?"
-            },
-            {
-              id: "real_estate",
-              text: "Nieruchomości na wynajem",
-              value: "real_estate",
-              question: "Jakie formy oszczędzania na emeryturę rozważasz?"
-            },
-            {
-              id: "combined",
-              text: "Strategia łączona",
-              value: "combined",
-              question: "Jakie formy oszczędzania na emeryturę rozważasz?"
-            }
-          ];
-        }
-      } else {
-        // No more questions, return empty array to trigger recommendation generation
-        return [];
-      }
-
-      // Fallback if none of the specific paths matched
-      return [];
-    } catch (error) {
-      console.error("Error in processDecisionStep:", error);
-      return [
-        {
-          id: "error",
-          text: "Wystąpił błąd, spróbuj ponownie",
-          value: "error",
-          question: "Przepraszamy, wystąpił błąd. Czy chcesz spróbować ponownie?"
-        }
-      ];
-    }
-  },
-
-  generateReport: async (advisorId, decisionPath, userProfile) => {
-    try {
-      // Create the request body
-      const requestBody = {
-        user_id: 1, // Default user ID, in a real app would be the actual user ID
-        advisor_id: advisorId,
-        decision_path: decisionPath,
-        user_profile: userProfile
-      };
-
-      // In a real implementation, this would be an API call to the backend
-      // const response = await fetch('/api/financial-tree/generate-report', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(requestBody)
-      // });
-      // return await response.json();
-
-      // For now, simulate API response based on mock data
-      console.log(`Generating report for advisor ${advisorId}`);
-      
-      // Map advisor ID to appropriate financial goal
-      let financialGoal;
-      if (advisorId === "budget_planner") {
-        financialGoal = "emergency_fund";
-      } else if (advisorId === "savings_strategist") {
-        financialGoal = "home_purchase";
-      } else if (advisorId === "execution_expert") {
-        financialGoal = "debt_reduction";
-      } else if (advisorId === "optimization_advisor") {
-        financialGoal = "retirement";
-      } else {
-        financialGoal = "emergency_fund"; // Default
-      }
-
-      // Generate report based on financial goal and decision path
-      if (financialGoal === "emergency_fund") {
-        // Find the answers from the decision path
-        const timeframeDecision = decisionPath.find(d => d.selection === "short" || d.selection === "medium" || d.selection === "long");
-        const amountDecision = decisionPath.find(d => d.selection === "three" || d.selection === "six" || d.selection === "twelve");
-        const methodDecision = decisionPath.find(d => d.selection === "automatic" || d.selection === "percentage" || d.selection === "surplus");
-        
-        const timeframe = timeframeDecision ? timeframeDecision.selection : "medium";
-        const amount = amountDecision ? amountDecision.selection : "six";
-        const method = methodDecision ? methodDecision.selection : "automatic";
-        
-        // Map selections to human-readable text
-        const timeframeText = {
-          "short": "6 miesięcy",
-          "medium": "roku",
-          "long": "1-2 lat"
-        }[timeframe];
-        
-        const amountText = {
-          "three": "3 miesiące",
-          "six": "6 miesięcy",
-          "twelve": "12 miesięcy"
-        }[amount];
-        
-        const methodText = {
-          "automatic": "automatycznego odkładania stałej kwoty",
-          "percentage": "odkładania procentu dochodów",
-          "surplus": "odkładania nadwyżek z budżetu"
-        }[method];
-        
-        return {
-          summary: `Na podstawie Twoich odpowiedzi rekomendujemy strategię budowy funduszu awaryjnego pokrywającego ${amountText} wydatków w ciągu ${timeframeText} poprzez wykorzystanie ${methodText}.`,
-          steps: [
-            `Określ swoje miesięczne wydatki i pomnóż je przez ${amountText.split(" ")[0]}, aby ustalić docelową kwotę funduszu`,
-            "Wybierz bezpieczne, płynne instrumenty finansowe (np. konto oszczędnościowe, lokaty krótkoterminowe)",
-            "Skorzystaj z funkcji automatycznych przelewów w swoim banku",
-            "Korzystaj z funduszu tylko w prawdziwych sytuacjach awaryjnych"
-          ]
-        };
-      } else if (financialGoal === "debt_reduction") {
-        // Find the answers from the decision path
-        const typeDecision = decisionPath.find(d => ["credit_card", "consumer", "mortgage", "multiple"].includes(d.selection));
-        const amountDecision = decisionPath.find(d => ["small", "medium", "large", "very_large"].includes(d.selection));
-        const strategyDecision = decisionPath.find(d => ["avalanche", "snowball", "consolidation", "not_sure"].includes(d.selection));
-        
-        const type = typeDecision ? typeDecision.selection : "credit_card";
-        const amount = amountDecision ? amountDecision.selection : "medium";
-        const strategy = strategyDecision ? strategyDecision.selection : "avalanche";
-        
-        // Map selections to human-readable text
-        const typeText = {
-          "credit_card": "kart kredytowych i chwilówek",
-          "consumer": "kredytów konsumpcyjnych",
-          "mortgage": "kredytu hipotecznego",
-          "multiple": "wielu różnych zobowiązań"
-        }[type];
-        
-        const strategyText = {
-          "avalanche": "metodą lawiny (spłata zobowiązań z najwyższym oprocentowaniem w pierwszej kolejności)",
-          "snowball": "metodą kuli śnieżnej (spłata najmniejszych zobowiązań w pierwszej kolejności)",
-          "consolidation": "poprzez konsolidację zadłużenia",
-          "not_sure": "strategią dostosowaną do Twojej sytuacji"
-        }[strategy];
-        
-        return {
-          summary: `Na podstawie Twoich odpowiedzi rekomendujemy strategię spłaty ${typeText} ${strategyText}.`,
-          steps: [
-            "Stwórz pełną listę wszystkich zobowiązań z kwotami, oprocentowaniem i terminami",
-            "Przygotuj budżet, który pozwoli przeznaczyć maksymalną kwotę na spłatę zadłużenia",
-            strategy === "avalanche" ? "Dodatkowe środki kieruj na zobowiązanie z najwyższym oprocentowaniem" : 
-            strategy === "snowball" ? "Dodatkowe środki kieruj na zobowiązanie z najmniejszą kwotą" :
-            strategy === "consolidation" ? "Porównaj oferty kredytów konsolidacyjnych od różnych banków" :
-            "Skonsultuj się z doradcą finansowym w celu wyboru optymalnej strategii",
-            "Unikaj zaciągania nowych długów w trakcie realizacji planu spłaty"
-          ]
-        };
-      } else if (financialGoal === "home_purchase") {
-        // Find the answers from the decision path
-        const timeframeDecision = decisionPath.find(d => ["short", "medium", "long"].includes(d.selection));
-        const downPaymentDecision = decisionPath.find(d => ["ten", "twenty", "thirty_plus", "full"].includes(d.selection));
-        const budgetDecision = decisionPath.find(d => ["small", "medium", "large", "very_large"].includes(d.selection));
-        
-        const timeframe = timeframeDecision ? timeframeDecision.selection : "medium";
-        const downPayment = downPaymentDecision ? downPaymentDecision.selection : "twenty";
-        const budget = budgetDecision ? budgetDecision.selection : "medium";
-        
-        // Map selections to human-readable text
-        const timeframeText = {
-          "short": "1-2 lat",
-          "medium": "3-5 lat",
-          "long": "5-10 lat"
-        }[timeframe];
-        
-        const downPaymentText = {
-          "ten": "10%",
-          "twenty": "20%",
-          "thirty_plus": "30% lub więcej",
-          "full": "100% (bez kredytu)"
-        }[downPayment];
-        
-        const budgetText = {
-          "small": "do 300 tys. zł",
-          "medium": "300-600 tys. zł",
-          "large": "600 tys. - 1 mln zł",
-          "very_large": "powyżej 1 mln zł"
-        }[budget];
-        
-        return {
-          summary: `Na podstawie Twoich odpowiedzi rekomendujemy strategię oszczędzania na zakup nieruchomości o wartości ${budgetText} z wkładem własnym ${downPaymentText} w okresie ${timeframeText}.`,
-          steps: [
-            "Utwórz dedykowane konto oszczędnościowe na wkład własny",
-            "Ustaw automatyczne przelewy na to konto w dniu wypłaty",
-            timeframe === "short" ? "Maksymalizuj oszczędności - rozważ odkładanie 30-40% miesięcznych dochodów" :
-            timeframe === "medium" ? "Ustaw plan systematycznego oszczędzania 20-25% miesięcznych dochodów" :
-            "Rozważ bardziej zróżnicowaną strategię inwestycyjną dla długoterminowego oszczędzania",
-            "Monitoruj rynek nieruchomości i trendy cenowe w interesujących Cię lokalizacjach"
-          ]
-        };
-      } else if (financialGoal === "retirement") {
-        // Find the answers from the decision path
-        const ageDecision = decisionPath.find(d => ["early", "standard", "late"].includes(d.selection) && decisionPath.indexOf(d) === 0);
-        const currentAgeDecision = decisionPath.find(d => ["early", "mid", "late"].includes(d.selection) && decisionPath.indexOf(d) === 1);
-        const vehicleDecision = decisionPath.find(d => ["ike_ikze", "investment", "real_estate", "combined"].includes(d.selection));
-        
-        const age = ageDecision ? ageDecision.selection : "standard";
-        const currentAge = currentAgeDecision ? currentAgeDecision.selection : "mid";
-        const vehicle = vehicleDecision ? vehicleDecision.selection : "combined";
-        
-        // Map selections to human-readable text
-        const ageText = {
-          "early": "wcześniejszej emerytury",
-          "standard": "emerytury w standardowym wieku",
-          "late": "późniejszej emerytury"
-        }[age];
-        
-        const currentAgeText = {
-          "early": "wczesnym etapie kariery (20-35 lat)",
-          "mid": "środkowym etapie kariery (36-50 lat)",
-          "late": "późnym etapie kariery (51+ lat)"
-        }[currentAge];
-        
-        const vehicleText = {
-          "ike_ikze": "IKE/IKZE",
-          "investment": "własne inwestycje długoterminowe",
-          "real_estate": "nieruchomości na wynajem",
-          "combined": "strategię łączoną"
-        }[vehicle];
-        
-        return {
-          summary: `Na podstawie Twoich odpowiedzi rekomendujemy strategię budowania zabezpieczenia na ${ageText} będąc obecnie na ${currentAgeText} poprzez ${vehicleText}.`,
-          steps: [
-            "Określ swoje potrzeby finansowe na emeryturze",
-            currentAge === "early" ? "Wykorzystaj długi horyzont inwestycyjny - rozważ wyższy udział akcji (70-80%)" :
-            currentAge === "mid" ? "Zwiększ kwotę oszczędności do 15-20% dochodów" :
-            "Maksymalizuj oszczędności - rozważ odkładanie 25-30% dochodów",
-            vehicle === "ike_ikze" ? "Maksymalizuj roczne wpłaty do limitu (szczególnie na IKZE dla bieżących korzyści podatkowych)" :
-            vehicle === "investment" ? "Stwórz zdywersyfikowany portfel dostosowany do Twojego horyzontu emerytalnego" :
-            vehicle === "real_estate" ? "Inwestuj w nieruchomości generujące stabilny przepływ gotówki (wynajem)" :
-            "Łącz różne instrumenty (państwowy system emerytalny, IKE/IKZE, własne inwestycje)",
-            "Systematycznie weryfikuj i dostosowuj strategię do zmieniających się warunków"
-          ]
-        };
-      }
-
-      // Fallback if none of the specific paths matched
-      return {
-        summary: "Na podstawie Twoich odpowiedzi przygotowaliśmy ogólne rekomendacje finansowe.",
-        steps: [
-          "Stwórz budżet miesięczny i monitoruj wydatki",
-          "Zbuduj fundusz awaryjny pokrywający 3-6 miesięcy wydatków",
-          "Spłać zadłużenia o wysokim oprocentowaniu",
-          "Regularnie odkładaj na długoterminowe cele"
-        ]
-      };
-    } catch (error) {
-      console.error("Error in generateReport:", error);
-      return {
-        summary: "Wystąpił błąd podczas generowania raportu.",
-        steps: [
-          "Spróbuj ponownie później",
-          "Sprawdź połączenie internetowe",
-          "Skontaktuj się z obsługą klienta jeśli problem będzie się powtarzał"
-        ]
-      };
-    }
-  }
-};
+// Now using the enhanced decision tree service from utils/decisionTreeService.js
 
 const ACHIEVEMENTS = [
   { id: 'first_goal', title: 'Pierwszy krok', description: 'Ustawiłeś cel', icon: '🚀' },
@@ -942,91 +359,18 @@ const ACHIEVEMENTS = [
   { id: 'emergency_fund', title: 'Fundusz', description: 'Utworzyłeś fundusz awaryjny', icon: '🛡️' }
 ];
 
-const COLORS = {
-  primary: '#0F3057',
-  secondary: '#00A896',
-  background: '#f8f9fa',
-  lightBackground: '#ffffff',
-  text: '#333333',
-  lightText: '#666666',
-  success: '#4caf50',
-  warning: '#ff9800',
-  error: '#f44336'
+// Using the color palette from chartConfigs.js
+const COLOR_PALETTES = {
+  main: {
+    primary: '#0F3057',
+    secondary: '#00A896',
+    success: '#4CAF50',
+    lightText: '#666',
+    text: '#111',
+    background: '#f7f9fc',
+    lightBackground: '#ffffff'
+  }
 };
-
-const useSpeechRecognition = () => {
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const recognitionRef = useRef(null);
-
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.lang = 'pl-PL';
-      recognitionRef.current.onresult = (event) => setTranscript(event.results[0][0].transcript);
-      recognitionRef.current.onend = () => setIsListening(false);
-    }
-    return () => {
-      if (recognitionRef.current && isListening) recognitionRef.current.stop();
-    };
-  }, [isListening]);
-
-  const startListening = useCallback(() => {
-    setTranscript('');
-    if (recognitionRef.current) {
-      recognitionRef.current.start();
-      setIsListening(true);
-    }
-  }, []);
-
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    }
-  }, [isListening]);
-
-  return { isListening, transcript, startListening, stopListening, supported: !!recognitionRef.current };
-};
-
-const FinancialProgressChart = ({ financialData, goalAmount }) => {
-  const chartData = {
-    labels: financialData.map(entry => entry.date),
-    datasets: [
-      { label: 'Oszczędności', data: financialData.map(entry => entry.amount), borderColor: COLORS.secondary, backgroundColor: 'rgba(0, 168, 150, 0.1)', fill: true, tension: 0.4 },
-      { label: 'Cel', data: Array(financialData.length).fill(goalAmount), borderColor: COLORS.primary, borderDash: [5, 5], backgroundColor: 'rgba(0, 0, 0, 0)', fill: false }
-    ]
-  };
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' },
-      tooltip: { callbacks: { label: context => `${context.dataset.label}: ${context.raw.toLocaleString()} zł` } }
-    },
-    scales: {
-      y: { beginAtZero: true, title: { display: true, text: 'Kwota (zł)' }, ticks: { callback: value => value.toLocaleString() + ' zł' } },
-      x: { title: { display: true, text: 'Miesiąc' } }
-    }
-  };
-  return <Box height={300} width="100%" mb={3}><Line data={chartData} options={chartOptions} /></Box>;
-};
-
-const AchievementNotification = ({ achievement, onClose }) => (
-  <Slide direction="up" in={!!achievement}>
-    <Paper sx={{ p: 3, display: 'flex', alignItems: 'center', backgroundColor: '#f8f9d2', position: 'fixed', bottom: 20, right: 20, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxWidth: 350 }}>
-      <Typography variant="h3" sx={{ mr: 2 }}>{achievement.icon}</Typography>
-      <Box>
-        <Typography variant="h6" sx={{ color: COLORS.primary, fontWeight: 'bold' }}>{achievement.title}</Typography>
-        <Typography variant="body2">{achievement.description}</Typography>
-      </Box>
-      <IconButton onClick={onClose} sx={{ ml: 1 }}><CloseIcon /></IconButton>
-    </Paper>
-  </Slide>
-);
-
 const AIChatSection = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
@@ -1328,7 +672,7 @@ const AIChatSection = () => {
     
     try {
       // Call the enhanced AI message function
-      const response = await sendAIMessage(
+      const response = await sendEnhancedAIMessage(
         newMessage,
         currentAdvisor?.id,
         userProfile,
@@ -1570,7 +914,7 @@ const AIChatSection = () => {
       // First question label - based on advisor type
       const advisor = ADVISORS.find(a => a.id === currentAdvisor?.id);
       if (advisor) {
-        return `Wybór celu: ${getGoalDisplayName(advisor.goal)}`;
+        return `Wybór celu: ${mapGoalToName(advisor.goal)}`;
       }
       return 'Wybór celu finansowego';
     }
@@ -2059,8 +1403,8 @@ const AIChatSection = () => {
                 color: COLORS.secondary,
                 fontStyle: 'italic'
               }}>
-                Cel: {getGoalDisplayName(advisor.goal)}
-              </Typography>
+                Cel: {mapGoalToName(advisor.goal)}
+                </Typography>
             </Box>
             
             {/* Arrow Section */}
@@ -2174,7 +1518,7 @@ const AIChatSection = () => {
               {currentAdvisor.name}
             </Typography>
             <Typography variant="body2" sx={{ color: COLORS.lightText }}>
-              Cel: {getGoalDisplayName(currentAdvisor.goal)}
+            Cel: {mapGoalToName(currentAdvisor.goal)}
             </Typography>
           </Box>
         </Box>
@@ -2435,296 +1779,22 @@ const AIChatSection = () => {
   );
 
   // Enhanced chat UI
+  
   const renderChat = () => (
-    <Paper 
-      elevation={3} 
-      sx={{ 
-        p: 0, 
-        maxWidth: 800, 
-        margin: '0 auto', 
-        backgroundColor: COLORS.lightBackground,
-        display: 'flex',
-        flexDirection: 'column',
-        height: 550,
-        borderRadius: '16px',
-        overflow: 'hidden',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.1)'
-      }}
-    >
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          p: 2,
-          backgroundColor: COLORS.primary,
-          color: 'white'
-        }}
-      >
-        <Box display="flex" alignItems="center">
-          <Box 
-            sx={{ 
-              width: 40, 
-              height: 40, 
-              borderRadius: '50%', 
-              backgroundColor: 'rgba(255, 255, 255, 0.2)', 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              fontSize: '1.2rem',
-              mr: 2
-            }}
-          >
-            {currentAdvisor.icon}
-          </Box>
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              {currentAdvisor.name}
-            </Typography>
-            <Typography variant="caption" sx={{ opacity: 0.8 }}>
-              Specjalizacja: {getGoalDisplayName(currentAdvisor.goal)}
-            </Typography>
-          </Box>
-        </Box>
-        
-        <Box>
-          {finalRecommendation && (
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<Info />}
-              onClick={() => setChatVisible(false)}
-              sx={{ 
-                color: 'white', 
-                borderColor: 'white',
-                mr: 2,
-                '&:hover': {
-                  borderColor: 'white',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                }
-              }}
-            >
-              Pokaż plan
-            </Button>
-          )}
-          
-          <IconButton onClick={() => setChatVisible(false)} sx={{ color: 'white' }}>
-            <ArrowBack />
-          </IconButton>
-        </Box>
-      </Box>
-      
-      <Box
-        ref={chatContainerRef}
-        sx={{
-          flexGrow: 1,
-          overflow: 'auto',
-          p: 3,
-          backgroundColor: '#f5f7fa',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2
-        }}
-      >
-        {chatMessages.length === 0 ? (
-          <Box 
-            display="flex" 
-            flexDirection="column" 
-            justifyContent="center" 
-            alignItems="center" 
-            height="100%"
-            gap={2}
-          >
-            <Box 
-              sx={{ 
-                fontSize: '3rem',
-                backgroundColor: 'rgba(0, 168, 150, 0.1)',
-                width: 80,
-                height: 80,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                borderRadius: '50%',
-                color: COLORS.secondary
-              }}
-            >
-              {currentAdvisor.icon}
-            </Box>
-            <Typography variant="body1" color={COLORS.lightText} textAlign="center">
-              {currentAdvisor.specialty || `Rozpocznij rozmowę z ${currentAdvisor.name}.`} <br/>
-              Zadaj pytanie dotyczące Twojego celu finansowego.
-            </Typography>
-          </Box>
-        ) : (
-          chatMessages.map((msg, index) => (
-            <Box
-              key={index}
-              sx={{
-                display: 'flex',
-                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                mb: 1
-              }}
-            >
-              {msg.role !== 'user' && (
-                <Box 
-                  sx={{ 
-                    backgroundColor: 'rgba(0, 168, 150, 0.1)',
-                    width: 36,
-                    height: 36,
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    borderRadius: '50%',
-                    mr: 1,
-                    fontSize: '1rem'
-                  }}
-                >
-                  {currentAdvisor.icon}
-                </Box>
-              )}
-              
-              <Paper
-                elevation={1}
-                sx={{
-                  p: 2,
-                  maxWidth: '75%',
-                  backgroundColor: msg.role === 'user' ? COLORS.primary : 'white',
-                  color: msg.role === 'user' ? 'white' : COLORS.text,
-                  borderRadius: msg.role === 'user' ? '18px 18px 0 18px' : '18px 18px 18px 0',
-                  boxShadow: msg.role === 'user' ? 
-                    '0 2px 8px rgba(15, 48, 87, 0.2)' : 
-                    '0 2px 8px rgba(0, 0, 0, 0.05)'
-                }}
-              >
-                <Typography variant="body1">
-                  {msg.content}
-                </Typography>
-                
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    display: 'block', 
-                    mt: 1, 
-                    textAlign: msg.role === 'user' ? 'right' : 'left',
-                    opacity: 0.7
-                  }}
-                >
-                  {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                </Typography>
-              </Paper>
-              
-              {msg.role === 'user' && msg.sentiment && (
-                <Box 
-                  sx={{ 
-                    ml: 1,
-                    fontSize: '1.2rem'
-                  }}
-                >
-                  {msg.sentiment === 'positive' ? '😊' : 
-                   msg.sentiment === 'negative' ? '😟' : ''}
-                </Box>
-              )}
-            </Box>
-          ))
-        )}
-        
-        {loading && (
-          <Box alignSelf="flex-start" display="flex" alignItems="center" mt={2} mb={2}>
-            <Box 
-              sx={{ 
-                backgroundColor: 'rgba(0, 168, 150, 0.1)',
-                width: 36,
-                height: 36,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                borderRadius: '50%',
-                mr: 1,
-                fontSize: '1rem'
-              }}
-            >
-              {currentAdvisor.icon}
-            </Box>
-            <Paper
-              elevation={1}
-              sx={{
-                p: 2,
-                backgroundColor: 'white',
-                borderRadius: '18px 18px 18px 0',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: COLORS.secondary, animation: 'pulse 1s infinite' }}></Box>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: COLORS.secondary, animation: 'pulse 1s infinite 0.2s' }}></Box>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: COLORS.secondary, animation: 'pulse 1s infinite 0.4s' }}></Box>
-              </Box>
-            </Paper>
-          </Box>
-        )}
-      </Box>
-      
-      <Box 
-        sx={{ 
-          p: 2, 
-          borderTop: '1px solid rgba(0,0,0,0.08)',
-          backgroundColor: 'white',
-          display: 'flex',
-          alignItems: 'center'
-        }}
-      >
-        {speechRecognitionSupported && (
-          <IconButton
-            color={isListening ? 'secondary' : 'default'}
-            onClick={isListening ? stopListening : startListening}
-            disabled={loading}
-            sx={{ mr: 1 }}
-          >
-            {isListening ? <MicOff /> : <Mic />}
-          </IconButton>
-        )}
-        
-        <TextField
-          fullWidth
-          placeholder={`Zapytaj ${currentAdvisor.name} o ${getGoalDisplayName(currentAdvisor.goal)}...`}
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          variant="outlined"
-          disabled={loading}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-          sx={{ 
-            mr: 1,
-            '& .MuiOutlinedInput-root': {
-              borderRadius: '30px',
-              backgroundColor: '#f5f7fa'
-            }
-          }}
-          InputProps={{
-            endAdornment: (
-              <IconButton 
-                color="primary"
-                disabled={loading || !newMessage.trim()}
-                onClick={handleSendMessage}
-              >
-                <ArrowForward />
-              </IconButton>
-            )
-          }}
-        />
-      </Box>
-      
-      <style jsx global>{`
-        @keyframes pulse {
-          0% { opacity: 0.4; }
-          50% { opacity: 1; }
-          100% { opacity: 0.4; }
-        }
-      `}</style>
-    </Paper>
+    <ChatWindow
+      currentAdvisor={currentAdvisor}
+      chatMessages={chatMessages}
+      newMessage={newMessage}
+      setNewMessage={setNewMessage}
+      isListening={isListening}
+      startListening={startListening}
+      stopListening={stopListening}
+      speechRecognitionSupported={speechRecognitionSupported}
+      handleSendMessage={handleSendMessage}
+      loading={loading}
+      setChatVisible={setChatVisible}
+      COLORS={COLORS}
+    />
   );
 
   const renderContent = () => {
@@ -2734,19 +1804,45 @@ const AIChatSection = () => {
     if (chatVisible) return renderChat();
     return renderDecisionTree();
   };
-
+  const COLORS = {
+    primary: '#0F3057',
+    secondary: '#00A896',
+    success: '#4CAF50',
+    lightText: '#666',
+    text: '#111',
+    background: '#f7f9fc',
+    lightBackground: '#ffffff'
+  };
+  
   return (
-    <Box sx={{ py: 4, backgroundColor: COLORS.background, minHeight: '100vh' }}>
+    <Box sx={{ py: 4, backgroundColor: COLORS.primary, minHeight: '100vh' }}>
       <Box sx={{ maxWidth: 1200, margin: '0 auto', px: 2 }}>
         <Box textAlign="center" mb={4}>
           <Typography variant="h4" gutterBottom sx={{ color: COLORS.primary, fontWeight: 'bold' }}>DisiNow</Typography>
           <Typography variant="body1" sx={{ color: COLORS.lightText }}>Twój asystent finansowy</Typography>
         </Box>
         {renderContent()}
-        <Snackbar open={notification.show} autoHideDuration={5000} onClose={() => setNotification({...notification, show: false})} anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
-          <Alert onClose={() => setNotification({...notification, show: false})} severity={notification.severity} variant="filled">{notification.message}</Alert>
+        <Snackbar
+          open={notification.show}
+          autoHideDuration={5000}
+          onClose={() => setNotification({ ...notification, show: false })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        >
+          <Alert
+            onClose={() => setNotification({ ...notification, show: false })}
+            severity={notification.severity}
+            variant="filled"
+          >
+            {notification.message}
+          </Alert>
         </Snackbar>
-        {newAchievement && <AchievementNotification achievement={newAchievement} onClose={handleCloseAchievement} />}
+        {newAchievement && (
+          <AchievementNotification
+            achievement={newAchievement}
+            onClose={handleCloseAchievement}
+            COLORS={COLORS} // jeśli komponent wymaga prop COLORS
+          />
+        )}
       </Box>
     </Box>
   );

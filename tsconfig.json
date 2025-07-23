@@ -21,8 +21,9 @@
   "include": [
     "next-env.d.ts",
     "**/*.ts",
-    "**/*.tsx"
-, "components/FinancialMap.jsx"  ],
+    "**/*.tsx",
+    "components/FinancialMap.jsx"
+  ],
   "exclude": [
     "node_modules"
   ]
