@@ -1966,3 +1966,93 @@ class TreeModel:
             if decision.get('node_id') == node_id:
                 return decision.get('selection')
         return None
+
+
+class TreeModel:
+    """
+    Wrapper class for FinancialDecisionTree to maintain compatibility with main.py
+    """
+    
+    def __init__(self):
+        """Initialize the TreeModel with FinancialDecisionTree."""
+        self.decision_tree = FinancialDecisionTree()
+        logger.info("TreeModel initialized with FinancialDecisionTree")
+    
+    def process_step(self, request):
+        """
+        Process a decision tree step.
+        
+        Args:
+            request: Decision tree request
+            
+        Returns:
+            Decision tree response
+        """
+        return self.decision_tree.process_step(request)
+    
+    def get_tree(self):
+        """Get the underlying decision tree."""
+        return self.decision_tree.tree
+    
+    def generate_recommendations(self, user_id: int, context: Dict[str, Any]):
+        """Generate recommendations based on context."""
+        return self.decision_tree._generate_recommendations(user_id, context)
+
+
+def get_additional_financial_insight(context: Dict[str, Any]) -> str:
+    """
+    Get additional financial insights based on context.
+    
+    Args:
+        context: Context dictionary with user information
+        
+    Returns:
+        Additional financial insight text
+    """
+    try:
+        # Extract relevant information from context
+        financial_goal = context.get("financial_goal", "")
+        answers = context.get("answers", {})
+        
+        if not financial_goal or not answers:
+            return "Aby uzyskać bardziej szczegółowe wskazówki, wypełnij więcej informacji w drzewie decyzyjnym."
+        
+        # Generate insights based on goal
+        insights = {
+            "emergency_fund": "Fundusz awaryjny to podstawa bezpieczeństwa finansowego. Pamiętaj o regularnym uzupełnianiu go wraz ze wzrostem wydatków.",
+            "debt_reduction": "Spłata zadłużenia to inwestycja w Twoją przyszłość finansową. Każda dodatkowa złotówka zaoszczędzi Ci odsetki.",
+            "home_purchase": "Zakup nieruchomości to długoterminowa inwestycja. Uwzględnij wszystkie koszty, nie tylko cenę zakupu.",
+            "retirement": "Im wcześniej zaczniesz oszczędzać na emeryturę, tym więcej skorzystasz z procentu składanego.",
+            "education": "Inwestycja w edukację to inwestycja w przyszłe możliwości zarobkowe.",
+            "vacation": "Planowanie wakacji z wyprzedzeniem pozwala na lepsze zarządzanie budżetem i znalezienie okazji."
+        }
+        
+        base_insight = insights.get(financial_goal, "Systematyczne podejście do finansów to klucz do osiągnięcia celów.")
+        
+        # Add specific insights based on answers
+        additional_insights = []
+        
+        if financial_goal == "emergency_fund":
+            timeframe = answers.get("ef_timeframe")
+            if timeframe == "short":
+                additional_insights.append("Krótki termin wymaga agresywnego oszczędzania - rozważ tymczasowe ograniczenie wydatków.")
+            elif timeframe == "long":
+                additional_insights.append("Dłuższy termin pozwala na bardziej zrównoważone podejście do oszczędzania.")
+        
+        elif financial_goal == "debt_reduction":
+            strategy = answers.get("debt_strategy")
+            if strategy == "avalanche":
+                additional_insights.append("Metoda lawiny jest matematycznie najbardziej efektywna - zaoszczędzisz najwięcej na odsetkach.")
+            elif strategy == "snowball":
+                additional_insights.append("Metoda kuli śnieżnej daje motywację psychologiczną - szybkie sukcesy pomagają w utrzymaniu dyscypliny.")
+        
+        # Combine insights
+        if additional_insights:
+            return f"{base_insight} {' '.join(additional_insights)}"
+        else:
+            return base_insight
+            
+    except Exception as e:
+        logger.error(f"Error generating additional insights: {e}")
+        return "Kontynuuj wypełnianie drzewa decyzyjnego, aby otrzymać spersonalizowane wskazówki."
+

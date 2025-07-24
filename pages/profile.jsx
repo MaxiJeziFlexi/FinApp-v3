@@ -11,7 +11,7 @@ const Profile = () => {
     const username = localStorage.getItem("username") || "admin";
     console.log("Logged-in username:", username);
 
-    fetch("http://localhost:4001/profile")
+x    fetch("http://localhost:8000/api/profile")
       .then((response) => {
         if (!response.ok) {
           throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
@@ -52,7 +52,7 @@ const Profile = () => {
 
   const handleSave = () => {
     setLoading(true);
-    fetch(`http://localhost:4001/profile/${formData.ID}`, {
+    fetch(`http://localhost:8000/api/profile/${formData.ID}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),

@@ -4,46 +4,29 @@ import os
 from contextlib import contextmanager
 from psycopg2.pool import SimpleConnectionPool
 import psycopg2
+from dotenv import load_dotenv
 
-# Print environment variables with labels for debugging
+# Ładuj zmienne środowiskowe z .env na początku
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+# Wyświetl zmienne środowiskowe dla debugowania
 print("DB_HOST:", os.getenv('DB_HOST'))
 print("DB_NAME:", os.getenv('DB_NAME'))
 print("DB_USER:", os.getenv('DB_USER'))
 print("DB_PASSWORD:", os.getenv('DB_PASSWORD'))
 print("DB_PORT:", os.getenv('DB_PORT', '5432'))
 
-logger = logging.getLogger(__name__)
-
-# Global connection pool variable
+# Globalna pula połączeń
 db_pool = None
-@contextmanager
-def get_db():
-    """Retrieve a connection from the pool and yield it."""
-    connection = None
-    try:
-        connection = db_pool.getconn()
-        yield connection
-    except Exception as e:
-        logger.error(f"Error with database connection: {e}")
-        raise Exception(f"Error with database connection: {e}")
-    finally:
-        if connection:
-            db_pool.putconn(connection)
 
-# Add the alias here
-get_db_connection = get_db  # Alias for compatibility with existing import statements
-
-@contextmanager
-def get_db_cursor(commit: bool = True):
-    """Provide a cursor from a connection in the pool with automatic commit/rollback."""
-    # ...rest of the function...
-    
 def init_db_pool():
-    """Initialize the database connection pool."""
+    """Inicjalizuje pulę połączeń do bazy danych."""
     global db_pool
     try:
         db_pool = SimpleConnectionPool(
-            1, 10,  # min and max connections
+            1, 10,
             host=os.getenv('DB_HOST', 'localhost'),
             database=os.getenv('DB_NAME'),
             user=os.getenv('DB_USER'),
@@ -57,7 +40,7 @@ def init_db_pool():
 
 @contextmanager
 def get_db():
-    """Retrieve a connection from the pool and yield it."""
+    """Pobiera połączenie z puli i zwraca je w kontekście."""
     connection = None
     try:
         connection = db_pool.getconn()
@@ -69,9 +52,11 @@ def get_db():
         if connection:
             db_pool.putconn(connection)
 
+get_db_connection = get_db  # Alias dla kompatybilności
+
 @contextmanager
 def get_db_cursor(commit: bool = True):
-    """Provide a cursor from a connection in the pool with automatic commit/rollback."""
+    """Zwraca kursor z połączenia w puli, automatycznie commit/rollback."""
     with get_db() as connection:
         cursor = connection.cursor()
         try:
@@ -86,13 +71,10 @@ def get_db_cursor(commit: bool = True):
             cursor.close()
 
 def init_db():
-    """Initialize the database and create tables if they don't exist."""
-    # Initialize connection pool first
+    """Tworzy tabele w bazie jeśli nie istnieją."""
     init_db_pool()
-    
     with get_db_cursor() as cursor:
         try:
-            # Create financial_analyses table
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS financial_analyses (
                 id SERIAL PRIMARY KEY,
@@ -107,8 +89,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """)
-            
-            # Create chat_interactions table
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS chat_interactions (
                 id SERIAL PRIMARY KEY,
@@ -118,8 +98,6 @@ def init_db():
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """)
-            
-            # Create user_profiles table for unified user data
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id SERIAL PRIMARY KEY,
@@ -135,10 +113,10 @@ def init_db():
             logger.info("Database tables initialized successfully")
         except Exception as e:
             logger.error(f"Database initialization error: {str(e)}")
-            raise  # Re-raise to allow higher-level handling
+            raise
 
 def save_analysis(data: Dict) -> bool:
-    """Save financial analysis results to the database."""
+    """Zapisuje analizę finansową w bazie."""
     try:
         with get_db_cursor() as cursor:
             cursor.execute("""
@@ -164,7 +142,7 @@ def save_analysis(data: Dict) -> bool:
         return False
 
 def get_user_history(user_id: int, limit: int = 5) -> List[Dict]:
-    """Get user's financial analysis history."""
+    """Pobiera historię analiz użytkownika."""
     try:
         with get_db_cursor(commit=False) as cursor:
             cursor.execute("""
@@ -175,7 +153,6 @@ def get_user_history(user_id: int, limit: int = 5) -> List[Dict]:
             ORDER BY created_at DESC 
             LIMIT %s
             """, (user_id, limit))
-            
             columns = [desc[0] for desc in cursor.description]
             history = [dict(zip(columns, row)) for row in cursor.fetchall()]
             return history

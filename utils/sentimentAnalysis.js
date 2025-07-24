@@ -11,7 +11,7 @@
  */
 
 import axios from 'axios';
-import { logError } from './securityLogger';
+// import { logError } from './securityLogger'; // Comment out if securityLogger doesn't exist
 
 // API endpoint for primary sentiment analysis
 const SENTIMENT_API_URL = process.env.REACT_APP_SENTIMENT_API_URL || 'http://localhost:5000/api/sentiment';
@@ -48,19 +48,26 @@ const POLISH_NEGATION_PHRASES = [
 ];
 
 /**
+ * Simple fallback for logError if securityLogger is not available
+ */
+const logError = (errorData) => {
+  console.error('Sentiment Analysis Error:', errorData);
+};
+
+/**
  * Analyzes sentiment of a message with advanced NLP techniques
  * and Polish language support
  * 
  * @param {string} message - Text message to analyze
  * @param {Object} options - Analysis options
- * @param {boolean} options.useAPI - Whether to use API (default true)
+ * @param {boolean} options.useAPI - Whether to use API (default false for local fallback)
  * @param {string} options.context - Context of the conversation (e.g., 'financial_advice')
  * @param {Array} options.messageHistory - Previous messages for context
  * @returns {Promise<Object>} - Sentiment analysis results
  */
 export const analyzeSentiment = async (message, options = {}) => {
   const { 
-    useAPI = true, 
+    useAPI = false, // Default to false to use local analysis
     context = 'financial_advice',
     messageHistory = [],
     language = 'pl'

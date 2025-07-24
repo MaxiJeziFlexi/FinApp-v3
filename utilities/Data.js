@@ -2,10 +2,10 @@ export const fetchFinancialData = async () => {
   try {
     // Fetch data from relevant endpoints
     const [accountBalancesRes, loansRes, investmentsRes, transactionsRes] = await Promise.all([
-      fetch("http://localhost:4001/account-balances"),
-      fetch("http://localhost:4001/credit-loans"),
-      fetch("http://localhost:4001/investments"),
-      fetch("http://localhost:4001/transactions"),
+      fetch("http://localhost:8000/api/account-balances"),
+      fetch("http://localhost:8000/api/credit-loans"),
+      fetch("http://localhost:8000/api/investments"),
+      fetch("http://localhost:8000/api/transactions"),
     ]);
 
     const [accountBalances, loans, investments, transactions] = await Promise.all([

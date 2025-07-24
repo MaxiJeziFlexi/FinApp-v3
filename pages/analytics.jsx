@@ -16,11 +16,31 @@ const AnalyticsPage = () => {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const res = await fetch(`/api/user-profile/${userId}`);
+        // Try to fetch from backend first, fallback to local API
+        let res;
+        try {
+          res = await fetch(`http://localhost:8000/api/user-profile/${userId}`);
+          if (!res.ok) {
+            throw new Error('Backend not available');
+          }
+        } catch (backendError) {
+          console.warn('Backend not available, using local API:', backendError);
+          res = await fetch(`/api/user-profile/${userId}`);
+        }
+        
         const data = await res.json();
         setUserProfile(data);
       } catch (error) {
         console.error("Error fetching user profile:", error);
+        // Set a default profile if both APIs fail
+        setUserProfile({
+          id: userId,
+          name: "Demo User",
+          financialGoal: "emergency_fund",
+          onboardingComplete: false,
+          progress: 0,
+          achievements: []
+        });
       } finally {
         setIsLoading(false);
       }

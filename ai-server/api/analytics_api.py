@@ -10,6 +10,10 @@ from psycopg2.extras import RealDictCursor
 import os
 from datetime import datetime, date
 import json
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter()  # Nie dodajemy prefiksu "/api" tutaj – on zostanie dodany globalnie
 
@@ -17,26 +21,30 @@ router = APIRouter()  # Nie dodajemy prefiksu "/api" tutaj – on zostanie dodan
 def get_db_connection():
     try:
         conn = psycopg2.connect(
-            dbname=os.getenv("DB_NAME", "finapp"),
+            dbname=os.getenv("DB_NAME", "postgres"),
             user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "postgres"),
+            password=os.getenv("DB_PASSWORD", "Maks5367"),
             host=os.getenv("DB_HOST", "localhost"),
             port=os.getenv("DB_PORT", "5432")
         )
         return conn
     except Exception as e:
-        print(f"Database connection error: {str(e)}")
+        logger.error(f"Database connection error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
 
 # Pydantic models for request/response
 class UserProfile(BaseModel):
     user_id: int
+    name: Optional[str] = None
+    email: Optional[str] = None
     age: Optional[int] = None
     country: Optional[str] = None
     monthly_income: Optional[float] = None
     monthly_expenses: Optional[float] = None
     financial_goal: Optional[str] = None
     risk_tolerance: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 class FinancialAnalytic(BaseModel):
     id: Optional[int] = None
@@ -106,6 +114,22 @@ def row_to_dict(row):
         return None
     return dict(row)
 
+# Helper function to create default user profile
+def create_default_user_profile(user_id: int) -> Dict[str, Any]:
+    return {
+        "user_id": user_id,
+        "name": f"User {user_id}",
+        "email": f"user{user_id}@example.com",
+        "age": 30,
+        "country": "US",
+        "monthly_income": 5000.0,
+        "monthly_expenses": 3000.0,
+        "financial_goal": "savings",
+        "risk_tolerance": "medium",
+        "created_at": datetime.now(),
+        "updated_at": datetime.now()
+    }
+
 # API Endpoints
 
 @router.get("/analytics/{user_id}", response_model=AnalyticsData)
@@ -120,6 +144,22 @@ async def get_analytics_data(user_id: int):
         # Get user profile
         cursor.execute("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
         user_profile = row_to_dict(cursor.fetchone())
+        
+        # Create default profile if none exists
+        if not user_profile:
+            default_profile = create_default_user_profile(user_id)
+            try:
+                cursor.execute("""
+                    INSERT INTO user_profiles 
+                    (user_id, name, email, age, country, monthly_income, monthly_expenses, financial_goal, risk_tolerance, created_at, updated_at)
+                    VALUES (%(user_id)s, %(name)s, %(email)s, %(age)s, %(country)s, %(monthly_income)s, %(monthly_expenses)s, %(financial_goal)s, %(risk_tolerance)s, %(created_at)s, %(updated_at)s)
+                    RETURNING *
+                """, default_profile)
+                user_profile = row_to_dict(cursor.fetchone())
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Could not create default profile: {e}")
+                user_profile = default_profile
         
         # Get financial analytics (last 10)
         cursor.execute("""
@@ -168,28 +208,49 @@ async def get_analytics_data(user_id: int):
             chat_history=chat_history
         )
     except Exception as e:
-        print(f"Error in get_analytics_data: {str(e)}")
+        logger.error(f"Error in get_analytics_data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching analytics data: {str(e)}")
 
 @router.get("/user-profile/{user_id}", response_model=UserProfile)
 async def get_user_profile(user_id: int):
     """
-    Get a user profile by user_id.
+    Get a user profile by user_id. Creates a default profile if none exists.
     """
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("SELECT * FROM user_profiles WHERE user_id = %s", (user_id,))
-        user_profile = row_to_dict(cursor.fetchone())
+        user_profile = cursor.fetchone()
+        
+        if not user_profile:
+            # Create default user profile
+            default_profile = create_default_user_profile(user_id)
+            
+            try:
+                cursor.execute("""
+                    INSERT INTO user_profiles 
+                    (user_id, name, email, age, country, monthly_income, monthly_expenses, financial_goal, risk_tolerance, created_at, updated_at)
+                    VALUES (%(user_id)s, %(name)s, %(email)s, %(age)s, %(country)s, %(monthly_income)s, %(monthly_expenses)s, %(financial_goal)s, %(risk_tolerance)s, %(created_at)s, %(updated_at)s)
+                    RETURNING *
+                """, default_profile)
+                
+                user_profile = cursor.fetchone()
+                conn.commit()
+                logger.info(f"Created default profile for user {user_id}")
+            except Exception as e:
+                logger.warning(f"Could not create default profile in database: {e}")
+                # Return default profile even if database insert fails
+                cursor.close()
+                conn.close()
+                return UserProfile(**default_profile)
+        
         cursor.close()
         conn.close()
-        if not user_profile:
-            raise HTTPException(status_code=404, detail=f"User profile not found for user_id: {user_id}")
-        return user_profile
-    except HTTPException:
-        raise
+        
+        return UserProfile(**row_to_dict(user_profile))
+        
     except Exception as e:
-        print(f"Error in get_user_profile: {str(e)}")
+        logger.error(f"Error in get_user_profile: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching user profile: {str(e)}")
 
 @router.post("/user-profile", response_model=UserProfile)
@@ -200,50 +261,65 @@ async def create_or_update_user_profile(profile: UserProfile):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Check if profile exists
         cursor.execute("SELECT * FROM user_profiles WHERE user_id = %s", (profile.user_id,))
         existing_profile = cursor.fetchone()
+        
+        current_time = datetime.now()
+        
         if existing_profile:
+            # Update existing profile
             cursor.execute("""
                 UPDATE user_profiles 
-                SET age = %s, country = %s, monthly_income = %s, 
-                    monthly_expenses = %s, financial_goal = %s, risk_tolerance = %s 
+                SET name = %s, email = %s, age = %s, country = %s, monthly_income = %s, 
+                    monthly_expenses = %s, financial_goal = %s, risk_tolerance = %s, updated_at = %s
                 WHERE user_id = %s
                 RETURNING *
                 """,
                 (
+                    profile.name,
+                    profile.email,
                     profile.age,
                     profile.country,
                     profile.monthly_income,
                     profile.monthly_expenses,
                     profile.financial_goal,
                     profile.risk_tolerance,
+                    current_time,
                     profile.user_id
                 )
             )
         else:
+            # Create new profile
             cursor.execute("""
                 INSERT INTO user_profiles 
-                (user_id, age, country, monthly_income, monthly_expenses, financial_goal, risk_tolerance) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (user_id, name, email, age, country, monthly_income, monthly_expenses, financial_goal, risk_tolerance, created_at, updated_at) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING *
                 """,
                 (
                     profile.user_id,
+                    profile.name,
+                    profile.email,
                     profile.age,
                     profile.country,
                     profile.monthly_income,
                     profile.monthly_expenses,
                     profile.financial_goal,
-                    profile.risk_tolerance
+                    profile.risk_tolerance,
+                    current_time,
+                    current_time
                 )
             )
+        
         result = row_to_dict(cursor.fetchone())
         conn.commit()
         cursor.close()
         conn.close()
         return result
     except Exception as e:
-        print(f"Error in create_or_update_user_profile: {str(e)}")
+        logger.error(f"Error in create_or_update_user_profile: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error saving user profile: {str(e)}")
 
 @router.post("/financial-goals", response_model=FinancialGoal)
@@ -276,7 +352,7 @@ async def create_financial_goal(goal: FinancialGoal):
         conn.close()
         return result
     except Exception as e:
-        print(f"Error in create_financial_goal: {str(e)}")
+        logger.error(f"Error in create_financial_goal: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating financial goal: {str(e)}")
 
 @router.post("/transactions", response_model=List[Transaction])
@@ -310,7 +386,7 @@ async def save_transactions(transactions: List[Transaction]):
         conn.close()
         return results
     except Exception as e:
-        print(f"Error in save_transactions: {str(e)}")
+        logger.error(f"Error in save_transactions: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error saving transactions: {str(e)}")
 
 @router.post("/chat-history", response_model=Dict[str, Any])
@@ -341,7 +417,7 @@ async def save_chat_message(message: ChatMessage):
         conn.close()
         return result
     except Exception as e:
-        print(f"Error in save_chat_message: {str(e)}")
+        logger.error(f"Error in save_chat_message: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error saving chat message: {str(e)}")
 
 @router.get("/financial-summary/{user_id}")
@@ -400,5 +476,5 @@ async def get_financial_summary(user_id: int):
             "savings_rate": savings_progress
         }
     except Exception as e:
-        print(f"Error in get_financial_summary: {str(e)}")
+        logger.error(f"Error in get_financial_summary: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching financial summary: {str(e)}")

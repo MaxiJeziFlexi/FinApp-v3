@@ -1,49 +1,52 @@
-# main.py - poprawiona wersja
-import time
-import logging
-import sys
 import os
+import sys
 import json
-from fastapi import APIRouter, HTTPException, FastAPI, Body
-from pydantic import BaseModel, Field
+import logging
 from typing import Optional, List, Dict, Any
+
+from fastapi import FastAPI, APIRouter, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+import spacy
+import openai
+import psycopg2
+from psycopg2 import pool
+
+# ----- your own modules -----
 from ai.tree_model import TreeModel
 from ai.financial_advisor import FinancialLegalAdvisor
 from ai.investment_advisor import InvestmentAdvisor
 from ai.ai_chat_selector import AIChatSelector
 from api.analysis import get_latest_data
-import spacy
-from utils.logger import logger
-from fastapi.middleware.cors import CORSMiddleware
-import psycopg2
-from core.database import get_db_connection
-from dotenv import load_dotenv
+from api.auth import router as auth_router
 from api.decision_tree import router as decision_tree_router
-from core.financial_models import AdvisoryRequest, AdvisoryResponse
-import openai
-
-# Ładujemy zmienne środowiskowe
-load_dotenv()
-
-# Import zewnętrznych routerów
 from api.invitations import router as invitations_router
 from api.analytics_api import router as analytics_router
 from api.specialized_advice import router as specialized_advice_router
+from core.financial_models import AdvisoryRequest, AdvisoryResponse
+from core.database import get_db_connection  # this will now use the pool
+from utils.logger import logger
 
-# Tworzenie instancji FastAPI
+# ----- load environment -----
+load_dotenv()
+
+DB_HOST     = os.getenv("DB_HOST")
+DB_NAME     = os.getenv("DB_NAME")
+DB_USER     = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_PORT     = int(os.getenv("DB_PORT", 5432))
+
+OPENAI_KEY  = os.getenv("OPENAI_API_KEY")
+
+# ----- FastAPI app -----
 app = FastAPI(
     title="FinApp API",
     description="AI-driven financial advisory application",
     version="1.0.0"
 )
 
-# Dołączanie zewnętrznych routerów
-app.include_router(analytics_router, prefix="/api")
-app.include_router(invitations_router, prefix="/api")
-app.include_router(specialized_advice_router, prefix="/api")
-app.include_router(decision_tree_router, prefix="/api", tags=["Decision Tree"])
-
-# Ustawienie middleware CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -52,23 +55,90 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Załaduj model spaCy
+# include external routers
+app.include_router(auth_router, prefix="/api")
+app.include_router(analytics_router, prefix="/api")
+app.include_router(invitations_router, prefix="/api")
+app.include_router(specialized_advice_router, prefix="/api")
+app.include_router(decision_tree_router, prefix="/api", tags=["Decision Tree"])
+
+# a local router for chat and other endpoints
+local_router = APIRouter()
+
+# ----- spaCy model -----
 nlp = spacy.load("en_core_web_sm")
+
+# extend Python path if needed
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# Utworzenie lokalnego routera dla endpointów czatu
-local_router = APIRouter()
-logger = logging.getLogger("chat")
-
-# Inicjalizacja doradców finansowych
+# ----- Initialize advisors & selector -----
 financial_advisor = FinancialLegalAdvisor()
 investment_advisor = InvestmentAdvisor()
 tree_model = TreeModel()
-
-# Inicjalizacja selektora AI - centralne miejsce koordynacji
 ai_chat_selector = AIChatSelector(financial_advisor, investment_advisor, tree_model)
 
-# Schematy danych czatu
+# ----- Database pool holder -----
+db_pool: Optional[pool.SimpleConnectionPool] = None
+
+@app.on_event("startup")
+def startup_event():
+    global db_pool
+    try:
+        db_pool = psycopg2.pool.SimpleConnectionPool(
+            1, 10,
+            host=DB_HOST,
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            port=DB_PORT
+        )
+        if not db_pool:
+            raise Exception("Could not initialize connection pool")
+        logger.info("Postgres pool created")
+    except Exception as e:
+        logger.error(f"Error initializing DB pool: {e}")
+        # re‑raise to fail fast
+        raise
+
+@app.on_event("shutdown")
+def shutdown_event():
+    global db_pool
+    if db_pool:
+        db_pool.closeall()
+        logger.info("Postgres pool closed")
+
+# Monkey‑patch core.database.get_db_connection to use our pool
+from core import database
+database.db_pool = db_pool  # so get_db_connection() will see it
+
+# ----- Utility to save chat interactions -----
+def save_interaction_to_database(
+    user_id: int,
+    question: str = None,
+    reply: str = None,
+    advisor_type: str = None,
+    context: Dict[str, Any] = None
+):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        context_json = json.dumps(context) if context else None
+        cur.execute(
+            """
+            INSERT INTO chat_interactions
+              (user_id, question, reply, advisor_type, context, timestamp)
+            VALUES (%s,%s,%s,%s,%s,NOW())
+            """,
+            (user_id, question, reply, advisor_type, context_json)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info("Interakcja została zapisana do bazy danych.")
+    except Exception as e:
+        logger.error(f"Błąd zapisywania interakcji do bazy danych: {e}")
+
+# ----- Pydantic models -----
 class ChatMessage(BaseModel):
     role: str = Field(..., example="user")
     content: str = Field(..., example="Tell me about investments")
@@ -85,10 +155,9 @@ class FinancialChatRequest(BaseModel):
     user_id: int
     question: str
     context: Dict[str, Any] = Field(default_factory=dict)
-    advisory_type: str = Field(default="financial", example="financial")
-    language: str = Field(default="pl", example="pl")
+    advisory_type: str = Field(default="financial")
+    language: str = Field(default="pl")
 
-# Modele dla nowych endpointów
 class FormRequest(BaseModel):
     user_id: int
     answer: str
@@ -109,111 +178,84 @@ class OpenAIRequest(BaseModel):
     question: str
     context: Dict[str, Any] = Field(default_factory=dict)
 
-# Funkcja zapisująca interakcje do bazy danych
-def save_interaction_to_database(user_id: int, question: str = None, reply: str = None, 
-                                advisor_type: str = None, context: Dict[str, Any] = None):
+# ----- Endpoints on local_router -----
+
+@local_router.get("/user-profile/{user_id}", tags=["User Profile"])
+async def get_user_profile(user_id: int):
+    """
+    Pobiera profil użytkownika na podstawie user_id.
+    """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        # Przygotowanie contextJSON
-        context_json = json.dumps(context) if context else None
-        
-        # Wstawianie interakcji
-        cur.execute("""
-            INSERT INTO chat_interactions 
-            (user_id, question, reply, advisor_type, context, timestamp)
-            VALUES (%s, %s, %s, %s, %s, NOW())
-        """, (user_id, question, reply, advisor_type, context_json))
-            
-        conn.commit()
+        cur.execute(
+            """
+            SELECT financial_data, investment_data, risk_profile, goals
+            FROM user_profiles
+            WHERE user_id = %s
+            """,
+            (user_id,)
+        )
+        row = cur.fetchone()
         cur.close()
         conn.close()
-        logger.info("Interakcja została zapisana do bazy danych.")
-    except Exception as e:
-        logger.error(f"Błąd zapisywania interakcji do bazy danych: {str(e)}")
 
-# Nowy endpoint obsługujący zapytania OpenAI
+        if row:
+            return {
+                "user_id": user_id,
+                "financial_data": row[0],
+                "investment_data": row[1],
+                "risk_profile": row[2],
+                "goals": row[3],
+            }
+        else:
+            return {"user_id": user_id, "profile": None}
+
+    except Exception as e:
+        logger.error(f"Błąd pobierania profilu użytkownika: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @local_router.post("/openai-question", tags=["OpenAI"])
 async def ask_openai_question(request: OpenAIRequest):
     """
-    Bezpośrednie zapytanie do OpenAI API z użyciem klucza w zmiennych środowiskowych.
+    Bezpośrednie zapytanie do OpenAI API.
     """
+    if not request.question:
+        raise HTTPException(status_code=422, detail="Brak pytania w żądaniu")
+
+    if not OPENAI_KEY:
+        logger.error("Brak klucza OPENAI_API_KEY")
+        raise HTTPException(status_code=500, detail="API key not configured")
+
+    openai.api_key = OPENAI_KEY
+
+    system_message = """
+    Jesteś zaawansowanym doradcą finansowym...
+    """
+    # (add user profile to system_message if given)
+
     try:
-        user_id = request.user_id
-        question = request.question
-        context = request.context
-        
-        if not question:
-            raise HTTPException(status_code=422, detail="Brak pytania w żądaniu")
-        
-        # Pobierz klucz API z zmiennych środowiskowych
-        api_key = os.getenv("OPENAI_API_KEY")
-        
-        if not api_key:
-            logger.error("Brak klucza OPENAI_API_KEY w zmiennych środowiskowych")
-            raise HTTPException(status_code=500, detail="Brak konfiguracji API OpenAI")
-        
-        # Ustawienie klucza API
-        openai.api_key = api_key
-        
-        # Przygotuj kontekst dla OpenAI
-        system_message = """
-        Jesteś zaawansowanym doradcą finansowym w aplikacji DisiNow. 
-        Twoja rola polega na udzielaniu jasnych, konkretnych i pomocnych odpowiedzi 
-        na pytania związane z finansami osobistymi, inwestycjami i planowaniem finansowym.
-        """
-        
-        # Dodaj kontekst z profilu użytkownika
-        if context.get("profile_data"):
-            profile = context["profile_data"]
-            system_message += "\n\nInformacje o użytkowniku:\n"
-            
-            if "financial_data" in profile:
-                financial_data = profile["financial_data"]
-                system_message += f"Wiek: {financial_data.get('age', 'brak danych')}\n"
-                system_message += f"Dochód miesięczny: {financial_data.get('income', 'brak danych')} PLN\n"
-                system_message += f"Wydatki miesięczne: {financial_data.get('expenses', 'brak danych')} PLN\n"
-                system_message += f"Oszczędności: {financial_data.get('savings', 'brak danych')} PLN\n"
-            
-            if "behavioral_profile" in profile:
-                behavioral_profile = profile["behavioral_profile"]
-                system_message += f"\nTolerancja ryzyka: {behavioral_profile.get('risk_tolerance', 'brak danych')}\n"
-                system_message += f"Cel finansowy: {behavioral_profile.get('financial_goal', 'brak danych')}\n"
-        
-        # Wywołaj OpenAI API
-        try:
-            # Używamy formatu zgodnego z najnowszą wersją API OpenAI
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": question}
-                ],
-                temperature=0.7,
-                max_tokens=1000
-            )
-            
-            # Pobierz odpowiedź
-            answer = response.choices[0].message["content"].strip()
-            
-            # Zapisz interakcję do bazy danych
-            save_interaction_to_database(
-                user_id=user_id,
-                question=question,
-                reply=answer,
-                advisor_type="openai",
-                context={"source": "openai_api", "profile": context.get("profile_data")}
-            )
-            
-            return {"reply": answer, "source": "openai"}
-            
-        except Exception as e:
-            logger.error(f"Błąd wywołania OpenAI API: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Błąd wywołania OpenAI API: {str(e)}")
-            
+        resp = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user",   "content": request.question}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        answer = resp.choices[0].message.content.strip()
+        save_interaction_to_database(
+            user_id=request.user_id,
+            question=request.question,
+            reply=answer,
+            advisor_type="openai",
+            context=request.context
+        )
+        return {"reply": answer, "source": "openai"}
     except Exception as e:
-        logger.error(f"Błąd w endpointcie openai-question: {str(e)}")
+        logger.error(f"Błąd wywołania OpenAI API: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Endpoint obsługujący formularz profilowy
@@ -505,10 +547,58 @@ async def enhanced_decision_tree(request: Dict[str, Any] = Body(...)):
 # Dołączenie lokalnego routera do aplikacji FastAPI
 app.include_router(local_router, prefix="/api")
 
+# Add redirect endpoints for backward compatibility
+@app.post("/decision-tree")
+async def decision_tree_redirect(request_data: Dict[str, Any] = Body(...)):
+    """
+    Redirect endpoint for backward compatibility.
+    Forwards requests from /decision-tree to /api/decision-tree
+    """
+    from api.decision_tree import process_decision_tree
+    return await process_decision_tree(request_data)
+
+@app.post("/decision-tree/report")
+async def decision_tree_report_redirect(request_data: Dict[str, Any] = Body(...)):
+    """
+    Redirect endpoint for backward compatibility.
+    Forwards requests from /decision-tree/report to /api/decision-tree/report
+    """
+    from api.decision_tree import generate_report
+    return await generate_report(request_data)
+
+@app.post("/decision-tree/reset")
+async def decision_tree_reset_redirect(request_data: Dict[str, Any] = Body(...)):
+    """
+    Redirect endpoint for backward compatibility.
+    Forwards requests from /decision-tree/reset to /api/decision-tree/reset
+    """
+    from api.decision_tree import reset_decision_tree
+    return await reset_decision_tree(request_data)
+
+@app.post("/decision-tree/question")
+async def decision_tree_question_redirect(request_data: Dict[str, Any] = Body(...)):
+    """
+    Redirect endpoint for backward compatibility.
+    Forwards requests from /decision-tree/question to /api/decision-tree/question
+    """
+    from api.decision_tree import get_next_question
+    return await get_next_question(request_data)
+
+@app.get("/decision-tree/recommendations/{user_id}")
+async def decision_tree_recommendations_redirect(user_id: int):
+    """
+    Redirect endpoint for backward compatibility.
+    Forwards requests from /decision-tree/recommendations/{user_id} to /api/decision-tree/recommendations/{user_id}
+    """
+    from api.decision_tree import get_user_recommendations
+    return await get_user_recommendations(user_id)
+
 @app.get("/")
 async def root():
     return {"message": "Welcome to FinApp API. Use /api/chat or /api/financial-chat endpoints."}
 
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    

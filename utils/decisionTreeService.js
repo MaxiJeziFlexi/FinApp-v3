@@ -13,7 +13,8 @@ import axios from 'axios';
 import { getLocalizedText } from './localization';
 import { logUserActivity, logError } from './securityLogger';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// Updated API URL to use environment variable - pointing to ai-server
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 /**
  * Map advisor ID to appropriate financial goal

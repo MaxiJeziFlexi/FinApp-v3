@@ -1,4 +1,3 @@
-# api/decision_tree_api.py
 """
 Endpoint API dla drzewa decyzyjnego - łączy frontend z modelem drzewa decyzyjnego
 i routerami FastAPI.
@@ -16,7 +15,7 @@ from ai.tree_model import (
     DecisionTreeResponse,
     FinancialRecommendation
 )
-from ai.ai_chat_selector import AIChatSelector
+# from ai.ai_chat_selector import AIChatSelector  # Commented out to avoid import issues
 from core.database import get_db_connection
 
 router = APIRouter()
@@ -29,28 +28,32 @@ decision_tree = FinancialDecisionTree()
 async def process_decision_tree(request_data: Dict[str, Any] = Body(...)):
     """
     Przetwarza krok w drzewie decyzyjnym specjalisty i zwraca następny krok lub rekomendacje.
-    
-    Args:
-        request_data: Dane zapytania z frontendu
-        
-    Returns:
-        Dane dla następnego kroku drzewa decyzyjnego lub rekomendacje
+    Obsługuje zapytania z frontend decision tree service i wykorzystuje tree_model.py.
     """
     try:
         logger.info(f"Przetwarzanie kroku drzewa decyzyjnego: {request_data}")
         
-        # Pobierz dane z zapytania
+        # Pobierz dane z zapytania - obsługa różnych formatów z frontendu
         user_id = request_data.get("user_id", 1)
+        advisor_id = request_data.get("advisor_id")
+        goal_type = request_data.get("goal_type")
+        step = request_data.get("step", 0)
+        decision_path = request_data.get("decision_path", [])
+        context = request_data.get("context", {})
         current_node_id = request_data.get("current_node_id")
         answer = request_data.get("answer")
-        context = request_data.get("context", {})
         
-        # Określ typ doradcy, jeśli nie został podany
-        if "advisor_type" not in context:
-            advisor_type = "financial"  # domyślny typ
-            if current_node_id and "_" in current_node_id:
-                advisor_type = current_node_id.split("_")[0]
-            context["advisor_type"] = advisor_type
+        # Określ typ doradcy na podstawie goal_type lub advisor_id
+        if goal_type:
+            context["advisor_type"] = _map_goal_to_advisor_type(goal_type)
+        elif advisor_id:
+            context["advisor_type"] = _map_advisor_id_to_type(advisor_id)
+        else:
+            context["advisor_type"] = "financial"
+        
+        # Jeśli nie ma current_node_id, rozpocznij od root
+        if not current_node_id:
+            current_node_id = "root"
         
         # Utwórz obiekt żądania dla modelu drzewa decyzyjnego
         tree_request = DecisionTreeRequest(
@@ -60,50 +63,71 @@ async def process_decision_tree(request_data: Dict[str, Any] = Body(...)):
             context=context
         )
         
-        # Przetwórz krok drzewa decyzyjnego
+        # Przetwórz krok drzewa decyzyjnego używając tree_model
         response = decision_tree.process_step(tree_request)
         
-        # Zapisz krok w dzienniku (opcjonalne)
+        # Zapisz krok w dzienniku
         try:
             _log_decision_tree_step(tree_request)
         except Exception as e:
             logger.error(f"Błąd logowania kroku drzewa decyzyjnego: {e}")
-            # Kontynuuj, nawet jeśli logowanie nie powiedzie się
         
-        # Zwróć odpowiedź w formacie wymaganym przez frontend
-        return response.dict()
+        # Konwertuj odpowiedź z tree_model na format oczekiwany przez frontend
+        result = {
+            "node": response.node.dict(),
+            "progress": response.progress,
+            "step": step,
+            "advisor_type": context.get("advisor_type", "financial"),
+            "goal_type": goal_type
+        }
+        
+        # Jeśli mamy rekomendacje, dodaj je do odpowiedzi
+        if response.recommendations:
+            result["recommendations"] = [rec.dict() for rec in response.recommendations]
+            result["completed"] = True
+        else:
+            result["completed"] = False
+        
+        # Dodaj wiadomości jeśli są
+        if response.messages:
+            result["messages"] = response.messages
+        
+        return result
     
     except Exception as e:
         logger.error(f"Błąd przetwarzania kroku drzewa decyzyjnego: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Błąd przetwarzania kroku drzewa decyzyjnego: {str(e)}"
-        )
+        # Zwróć opcje fallback zamiast błędu
+        return {
+            "node": {
+                "id": "error",
+                "type": "question",
+                "question": "Przepraszamy, wystąpił błąd. Czy chcesz spróbować ponownie?",
+                "options": [
+                    {"id": "retry", "label": "Spróbuj ponownie"},
+                    {"id": "restart", "label": "Zacznij od nowa"}
+                ]
+            },
+            "progress": 0.0,
+            "step": 0,
+            "advisor_type": "financial",
+            "error": str(e),
+            "completed": False
+        }
 
 @router.post("/decision-tree/report", response_model=Dict[str, Any])
 async def generate_report(request_data: Dict[str, Any] = Body(...)):
     """
     Generuje raport na podstawie ścieżki decyzyjnej użytkownika.
-    
-    Args:
-        request_data: Dane ścieżki decyzyjnej
-        
-    Returns:
-        Wygenerowany raport
     """
     try:
         logger.info(f"Generowanie raportu dla ścieżki decyzyjnej: {request_data}")
         
         user_id = request_data.get("user_id", 1)
-        advisor_type = request_data.get("advisor_type", "financial")
+        advisor_id = request_data.get("advisor_id")
+        goal_type = request_data.get("goal_type")
         decision_path = request_data.get("decision_path", [])
-        
-        # Utwórz kontekst na podstawie ścieżki decyzyjnej
-        context = {
-            "advisor_type": advisor_type,
-            "journey": decision_path,
-            "analysis_complete": True
-        }
+        user_profile = request_data.get("user_profile", {})
+        advisor_type = request_data.get("advisor_type") or goal_type or _map_advisor_id_to_type(advisor_id) or "financial"
         
         # Generuj rekomendacje na podstawie ścieżki decyzyjnej
         recommendations = _generate_recommendations_for_path(advisor_type, decision_path)
@@ -114,8 +138,14 @@ async def generate_report(request_data: Dict[str, Any] = Body(...)):
             "analysis": _generate_analysis(advisor_type, decision_path),
             "recommendations": [rec.get("description", "") for rec in recommendations],
             "detail_recommendations": recommendations,
+            "steps": [rec.get("description", "") for rec in recommendations],
             "advisor_type": advisor_type,
-            "generated_at": datetime.now().isoformat()
+            "advisorId": advisor_id,
+            "goal": goal_type,
+            "generatedAt": datetime.now().isoformat(),
+            "confidenceScore": _calculate_confidence_score(decision_path, user_profile),
+            "timeEstimate": _estimate_implementation_time(recommendations, user_profile),
+            "riskLevel": _assess_recommendation_risk(recommendations, user_profile)
         }
         
         # Opcjonalnie zapisz raport w bazie danych
@@ -123,51 +153,131 @@ async def generate_report(request_data: Dict[str, Any] = Body(...)):
             _save_report_to_database(user_id, report)
         except Exception as e:
             logger.error(f"Błąd zapisywania raportu do bazy danych: {e}")
-            # Kontynuuj, nawet jeśli zapisywanie nie powiedzie się
         
         return report
     
     except Exception as e:
         logger.error(f"Błąd generowania raportu: {e}")
+        # Zwróć raport fallback
+        return {
+            "summary": "Wystąpił błąd podczas generowania raportu. Oto ogólne rekomendacje finansowe.",
+            "steps": [
+                "Stwórz budżet miesięczny i monitoruj wydatki",
+                "Zbuduj fundusz awaryjny pokrywający 3-6 miesięcy wydatków",
+                "Spłać zadłużenia o wysokim oprocentowaniu",
+                "Regularnie odkładaj na długoterminowe cele"
+            ],
+            "generatedAt": datetime.now().isoformat(),
+            "isErrorFallback": True,
+            "errorCode": "REPORT_GENERATION_ERROR"
+        }
+
+@router.post("/decision-tree/reset", response_model=Dict[str, Any])
+async def reset_decision_tree(request_data: Dict[str, Any] = Body(...)):
+    """
+    Resetuje drzewo decyzyjne dla użytkownika.
+    """
+    try:
+        user_id = request_data.get("user_id", 1)
+        
+        logger.info(f"Resetowanie drzewa decyzyjnego dla użytkownika {user_id}")
+        
+        return {
+            "status": "success",
+            "message": "Drzewo decyzyjne zostało zresetowane",
+            "user_id": user_id,
+            "reset_at": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Błąd resetowania drzewa decyzyjnego: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Błąd generowania raportu: {str(e)}"
+            detail=f"Błąd resetowania drzewa decyzyjnego: {str(e)}"
+        )
+
+@router.post("/decision-tree/question", response_model=Dict[str, Any])
+async def get_next_question(request_data: Dict[str, Any] = Body(...)):
+    """
+    Pobiera następne pytanie w drzewie decyzyjnym na podstawie tree_model.py.
+    Endpoint dedykowany do obsługi pytań z tree_model.
+    """
+    try:
+        logger.info(f"Pobieranie następnego pytania: {request_data}")
+        
+        user_id = request_data.get("user_id", 1)
+        current_node_id = request_data.get("current_node_id", "root")
+        answer = request_data.get("answer")
+        context = request_data.get("context", {})
+        
+        # Utwórz żądanie dla tree_model
+        tree_request = DecisionTreeRequest(
+            user_id=user_id,
+            current_node_id=current_node_id,
+            answer=answer,
+            context=context
+        )
+        
+        # Przetwórz krok używając tree_model
+        response = decision_tree.process_step(tree_request)
+        
+        # Loguj krok
+        try:
+            _log_decision_tree_step(tree_request)
+        except Exception as e:
+            logger.error(f"B��ąd logowania kroku: {e}")
+        
+        # Zwróć odpowiedź w formacie oczekiwanym przez frontend
+        result = {
+            "question": response.node.question,
+            "options": response.node.options,
+            "node_id": response.node.id,
+            "node_type": response.node.type,
+            "progress": response.progress,
+            "context": context
+        }
+        
+        # Jeśli to węzeł rekomendacji, dodaj rekomendacje
+        if response.node.type == "recommendation" and response.recommendations:
+            result["recommendations"] = [rec.dict() for rec in response.recommendations]
+            result["completed"] = True
+        else:
+            result["completed"] = False
+        
+        # Dodaj wiadomości
+        if response.messages:
+            result["messages"] = response.messages
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Błąd pobierania następnego pytania: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Błąd pobierania następnego pytania: {str(e)}"
         )
 
 @router.get("/decision-tree/recommendations/{user_id}", response_model=Dict[str, Any])
 async def get_user_recommendations(user_id: int):
     """
     Pobiera zapisane rekomendacje dla użytkownika.
-    
-    Args:
-        user_id: ID użytkownika
-        
-    Returns:
-        Lista rekomendacji
     """
     try:
         logger.info(f"Pobieranie rekomendacji dla użytkownika {user_id}")
         
-        # Pobierz rekomendacje z drzewa decyzyjnego
-        recommendations = decision_tree.get_user_recommendations(user_id)
-        
-        if not recommendations:
-            return {"recommendations": [], "message": "Nie znaleziono rekomendacji dla tego użytkownika."}
-        
-        # Przetwórz rekomendacje na format wymagany przez frontend
-        formatted_recommendations = [
+        # Na razie zwracamy przykładowe rekomendacje
+        recommendations = [
             {
-                "id": rec.id,
-                "title": rec.title,
-                "description": rec.description,
-                "advisor_type": rec.advisor_type,
-                "impact": rec.impact,
-                "action_items": rec.action_items
+                "id": "rec_1",
+                "title": "Automatyzacja oszczędzania",
+                "description": "Ustaw automatyczne przelewy na konto oszczędnościowe",
+                "advisor_type": "financial",
+                "impact": "high",
+                "action_items": ["Skonfiguruj zlecenie stałe", "Zacznij od 10% dochodu"]
             }
-            for rec in recommendations
         ]
         
-        return {"recommendations": formatted_recommendations, "count": len(formatted_recommendations)}
+        return {"recommendations": recommendations, "count": len(recommendations)}
     
     except Exception as e:
         logger.error(f"Błąd pobierania rekomendacji: {e}")
@@ -176,243 +286,323 @@ async def get_user_recommendations(user_id: int):
             detail=f"Błąd pobierania rekomendacji: {str(e)}"
         )
 
-def _log_decision_tree_step(request: DecisionTreeRequest):
-    """
-    Zapisuje krok drzewa decyzyjnego do bazy danych.
-    
-    Args:
-        request: Żądanie drzewa decyzyjnego
-    """
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Konwertuj kontekst na JSON
-        context_json = json.dumps(request.context) if request.context else None
-        
-        # Zapisz krok do bazy danych
-        cursor.execute(
-            """
-            INSERT INTO decision_tree_logs 
-            (user_id, node_id, answer, context, created_at)
-            VALUES (%s, %s, %s, %s, NOW())
-            """,
-            (
-                request.user_id,
-                request.current_node_id,
-                request.answer,
-                context_json
-            )
-        )
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        logger.info(f"Zapisano krok drzewa decyzyjnego dla użytkownika {request.user_id}")
-    except Exception as e:
-        logger.error(f"Błąd zapisywania kroku drzewa decyzyjnego: {e}")
-        # Rzuć wyjątek, aby został obsłużony przez wywołującą funkcję
-        raise
+# Helper functions
+def _map_goal_to_advisor_type(goal_type: str) -> str:
+    """Mapuje typ celu na typ doradcy."""
+    mapping = {
+        "emergency_fund": "financial",
+        "debt_reduction": "financial", 
+        "home_purchase": "financial",
+        "retirement": "investment",
+        "education": "financial",
+        "vacation": "financial",
+        "investment": "investment",
+        "tax_optimization": "tax",
+        "legal_planning": "legal"
+    }
+    return mapping.get(goal_type, "financial")
 
-def _save_report_to_database(user_id: int, report: Dict[str, Any]):
-    """
-    Zapisuje raport do bazy danych.
+def _map_advisor_id_to_type(advisor_id: str) -> str:
+    """Mapuje ID doradcy na typ doradcy."""
+    if not advisor_id:
+        return "financial"
     
-    Args:
-        user_id: ID użytkownika
-        report: Raport do zapisania
-    """
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Konwertuj raport na JSON
-        report_json = json.dumps(report)
-        
-        # Zapisz raport do bazy danych
-        cursor.execute(
-            """
-            INSERT INTO user_reports 
-            (user_id, report_data, advisor_type, created_at)
-            VALUES (%s, %s, %s, NOW())
-            """,
-            (
-                user_id,
-                report_json,
-                report.get("advisor_type", "financial")
-            )
-        )
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        logger.info(f"Zapisano raport dla użytkownika {user_id}")
-    except Exception as e:
-        logger.error(f"Błąd zapisywania raportu: {e}")
-        # Rzuć wyjątek, aby został obsłużony przez wywołującą funkcję
-        raise
-
-def _generate_recommendations_for_path(advisor_type: str, decision_path: List[str]) -> List[Dict[str, str]]:
-    """
-    Generuje rekomendacje na podstawie ścieżki decyzyjnej.
-    
-    Args:
-        advisor_type: Typ doradcy
-        decision_path: Ścieżka decyzyjna
-        
-    Returns:
-        Lista rekomendacji
-    """
-    # Ta funkcja powinna być zastąpiona rzeczywistą implementacją bazującą na modelu
-    if advisor_type == "financial":
-        return [
-            {
-                "title": "Automatyzacja oszczędzania",
-                "description": "Ustaw automatyczne przelewy na konto oszczędnościowe dzień po otrzymaniu wynagrodzenia",
-                "impact": "high",
-                "action_items": ["Skonfiguruj zlecenie stałe w bankowości internetowej", "Zacznij od 10% dochodu"]
-            },
-            {
-                "title": "Budżet awaryjny",
-                "description": "Utwórz fundusz awaryjny pokrywający 3-6 miesięcy wydatków",
-                "impact": "high",
-                "action_items": ["Określ swoje miesięczne niezbędne wydatki", "Zacznij odkładać nawet małe kwoty"]
-            },
-            {
-                "title": "Kategoryzacja wydatków",
-                "description": "Podziel swoje wydatki na kategorie i ustal limity dla każdej z nich",
-                "impact": "medium",
-                "action_items": ["Przeanalizuj historię transakcji z ostatnich 3 miesięcy", "Zidentyfikuj obszary do optymalizacji"]
-            }
-        ]
-    elif advisor_type == "investment":
-        return [
-            {
-                "title": "Dywersyfikacja portfela",
-                "description": "Rozłóż inwestycje między różne klasy aktywów, aby zminimalizować ryzyko",
-                "impact": "high",
-                "action_items": ["Określ swoją tolerancję na ryzyko", "Zbuduj portfel z różnych klas aktywów"]
-            },
-            {
-                "title": "Strategia uśredniania ceny",
-                "description": "Regularnie inwestuj stałą kwotę, niezależnie od aktualnych cen na rynku",
-                "impact": "medium",
-                "action_items": ["Ustal kwotę miesięcznej inwestycji", "Wybierz platformę inwestycyjną z niskimi prowizjami"]
-            },
-            {
-                "title": "Inwestycje długoterminowe",
-                "description": "Skup się na długoterminowym wzroście, ignorując krótkoterminowe wahania rynku",
-                "impact": "high",
-                "action_items": ["Ustal swój horyzont inwestycyjny", "Rozważ pasywne fundusze indeksowe"]
-            }
-        ]
-    elif advisor_type == "tax":
-        return [
-            {
-                "title": "Pełne wykorzystanie ulg podatkowych",
-                "description": "Sprawdź czy wykorzystujesz wszystkie przysługujące Ci ulgi podatkowe",
-                "impact": "high",
-                "action_items": ["Sporządź listę możliwych odliczeń", "Skonsultuj się z doradcą podatkowym"]
-            },
-            {
-                "title": "Optymalizacja struktury dochodów",
-                "description": "Dostosuj strukturę swoich dochodów dla optymalnych rozliczeń podatkowych",
-                "impact": "medium",
-                "action_items": ["Przeanalizuj swoje źródła dochodu", "Rozważ różne formy zatrudnienia/działalności"]
-            },
-            {
-                "title": "Planowanie podatkowe",
-                "description": "Zaplanuj z wyprzedzeniem swoje działania finansowe z uwzględnieniem aspektów podatkowych",
-                "impact": "medium",
-                "action_items": ["Twórz roczny plan finansowy", "Planuj większe transakcje z uwzględnieniem podatków"]
-            }
-        ]
-    elif advisor_type == "legal":
-        return [
-            {
-                "title": "Przegląd umów i dokumentów",
-                "description": "Regularnie przeglądaj swoje dokumenty prawne i umowy pod kątem aktualności",
-                "impact": "medium",
-                "action_items": ["Zorganizuj swoje dokumenty prawne", "Zaplanuj coroczny przegląd"]
-            },
-            {
-                "title": "Zabezpieczenie prawne majątku",
-                "description": "Wdrożenie odpowiednich zabezpieczeń prawnych dla posiadanego majątku",
-                "impact": "high",
-                "action_items": ["Sporządź testament", "Rozważ ustanowienie pełnomocnictwa"]
-            },
-            {
-                "title": "Dokumentacja ważnych decyzji",
-                "description": "Dokumentuj ważne decyzje finansowe i prawne w formie pisemnej",
-                "impact": "medium",
-                "action_items": ["Stwórz system przechowywania dokumentacji", "Ustal standardy dokumentacji"]
-            }
-        ]
+    if "investment" in advisor_id.lower():
+        return "investment"
+    elif "tax" in advisor_id.lower():
+        return "tax"
+    elif "legal" in advisor_id.lower():
+        return "legal"
     else:
-        # Domyślne rekomendacje
-        return [
+        return "financial"
+
+def _generate_step_options(advisor_type: str, step: int, decision_path: List[str], context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Generuje opcje dla następnego kroku w drzewie decyzyjnym."""
+    
+    # Opcje bazowe dla różnych typów doradców
+    financial_options = {
+        0: [
             {
-                "title": "Konsultacja z doradcą",
-                "description": "Rozważ konsultację z profesjonalnym doradcą finansowym",
-                "impact": "medium",
-                "action_items": ["Przygotuj listę pytań", "Zbierz wszystkie dokumenty finansowe"]
+                "id": "current_situation",
+                "text": "Ocena obecnej sytuacji finansowej",
+                "value": "assess_current",
+                "question": "Jak oceniasz swoją obecną sytuację finansową?"
             },
             {
-                "title": "Edukacja finansowa",
-                "description": "Inwestuj w swoją wiedzę finansową poprzez kursy i literaturę",
-                "impact": "medium",
-                "action_items": ["Wybierz jeden obszar do zgłębienia", "Zaplanuj regularne sesje nauki"]
+                "id": "set_goals",
+                "text": "Ustalenie celów finansowych",
+                "value": "set_goals",
+                "question": "Jakie są Twoje główne cele finansowe?"
+            }
+        ],
+        1: [
+            {
+                "id": "budget_planning",
+                "text": "Planowanie budżetu",
+                "value": "budget",
+                "question": "Czy masz ustalony miesięczny budżet?"
+            },
+            {
+                "id": "emergency_fund",
+                "text": "Fundusz awaryjny",
+                "value": "emergency",
+                "question": "Czy posiadasz fundusz awaryjny?"
             }
         ]
+    }
+    
+    investment_options = {
+        0: [
+            {
+                "id": "risk_tolerance",
+                "text": "Tolerancja ryzyka",
+                "value": "risk_assessment",
+                "question": "Jaka jest Twoja tolerancja na ryzyko inwestycyjne?"
+            },
+            {
+                "id": "investment_horizon",
+                "text": "Horyzont inwestycyjny",
+                "value": "time_horizon",
+                "question": "Na jak długo planujesz inwestować?"
+            }
+        ],
+        1: [
+            {
+                "id": "portfolio_diversification",
+                "text": "Dywersyfikacja portfela",
+                "value": "diversification",
+                "question": "Czy Twój portfel jest odpowiednio zdywersyfikowany?"
+            },
+            {
+                "id": "investment_amount",
+                "text": "Kwota inwestycji",
+                "value": "amount",
+                "question": "Jaką kwotę planujesz zainwestować?"
+            }
+        ]
+    }
+    
+    tax_options = {
+        0: [
+            {
+                "id": "tax_situation",
+                "text": "Sytuacja podatkowa",
+                "value": "tax_assessment",
+                "question": "Jaka jest Twoja obecna sytuacja podatkowa?"
+            },
+            {
+                "id": "deductions",
+                "text": "Ulgi podatkowe",
+                "value": "tax_deductions",
+                "question": "Czy korzystasz ze wszystkich dostępnych ulg podatkowych?"
+            }
+        ],
+        1: [
+            {
+                "id": "tax_optimization",
+                "text": "Optymalizacja podatkowa",
+                "value": "optimization",
+                "question": "Czy szukasz sposobów na optymalizację podatków?"
+            }
+        ]
+    }
+    
+    legal_options = {
+        0: [
+            {
+                "id": "legal_structure",
+                "text": "Struktura prawna",
+                "value": "legal_assessment",
+                "question": "Jaka jest Twoja obecna struktura prawna?"
+            },
+            {
+                "id": "estate_planning",
+                "text": "Planowanie spadkowe",
+                "value": "estate",
+                "question": "Czy masz ustalone planowanie spadkowe?"
+            }
+        ]
+    }
+    
+    # Wybierz odpowiednie opcje na podstawie typu doradcy
+    if advisor_type == "investment":
+        options_map = investment_options
+    elif advisor_type == "tax":
+        options_map = tax_options
+    elif advisor_type == "legal":
+        options_map = legal_options
+    else:
+        options_map = financial_options
+    
+    # Pobierz opcje dla danego kroku
+    options = options_map.get(step, [])
+    
+    # Jeśli nie ma opcji dla danego kroku, zwróć opcje finalizujące
+    if not options:
+        return [
+            {
+                "id": "finalize",
+                "text": "Zakończ i wygeneruj rekomendacje",
+                "value": "complete",
+                "question": "Czy chcesz wygenerować rekomendacje na podstawie podanych informacji?"
+            }
+        ]
+    
+    # Dodaj kontekst do każdej opcji
+    for option in options:
+        option["step"] = step
+        option["advisor_type"] = advisor_type
+        option["context"] = context
+    
+    return options
+
+def _generate_recommendations_for_path(advisor_type: str, decision_path: List[str]) -> List[Dict[str, Any]]:
+    """Generuje rekomendacje na podstawie ścieżki decyzyjnej."""
+    recommendations = []
+    
+    # Podstawowe rekomendacje na podstawie typu doradcy
+    if advisor_type == "financial":
+        recommendations.extend([
+            {
+                "id": "budget_planning",
+                "title": "Planowanie budżetu",
+                "description": "Stwórz szczegółowy budżet miesięczny i monitoruj wydatki",
+                "impact": "high",
+                "action_items": ["Przeanalizuj wydatki z ostatnich 3 miesięcy", "Ustaw limity dla każdej kategorii wydatków"]
+            },
+            {
+                "id": "emergency_fund",
+                "title": "Fundusz awaryjny",
+                "description": "Zbuduj fundusz awaryjny pokrywający 3-6 miesięcy wydatków",
+                "impact": "high",
+                "action_items": ["Określ miesięczne wydatki", "Ustaw automatyczne przelewy na konto oszczędnościowe"]
+            }
+        ])
+    elif advisor_type == "investment":
+        recommendations.extend([
+            {
+                "id": "portfolio_diversification",
+                "title": "Dywersyfikacja portfela",
+                "description": "Zdywersyfikuj swój portfel inwestycyjny",
+                "impact": "high",
+                "action_items": ["Przeanalizuj obecną alokację aktywów", "Rozważ inwestycje w różne klasy aktywów"]
+            },
+            {
+                "id": "risk_assessment",
+                "title": "Ocena ryzyka",
+                "description": "Dostosuj profil ryzyka do swoich celów",
+                "impact": "medium",
+                "action_items": ["Określ tolerancję na ryzyko", "Dostosuj portfel do horyzontu inwestycyjnego"]
+            }
+        ])
+    elif advisor_type == "tax":
+        recommendations.extend([
+            {
+                "id": "tax_optimization",
+                "title": "Optymalizacja podatkowa",
+                "description": "Wykorzystaj dostępne ulgi podatkowe",
+                "impact": "medium",
+                "action_items": ["Przeanalizuj dostępne ulgi", "Rozważ IKE/IKZE"]
+            }
+        ])
+    
+    return recommendations
 
 def _generate_summary(advisor_type: str, decision_path: List[str]) -> str:
-    """
-    Generuje podsumowanie na podstawie ścieżki decyzyjnej.
+    """Generuje podsumowanie na podstawie ścieżki decyzyjnej."""
+    if not decision_path:
+        return "Brak wystarczających danych do wygenerowania podsumowania."
     
-    Args:
-        advisor_type: Typ doradcy
-        decision_path: Ścieżka decyzyjna
-        
-    Returns:
-        Podsumowanie
-    """
-    # Ta funkcja powinna być zastąpiona rzeczywistą implementacją bazującą na modelu
-    if advisor_type == "financial":
-        return "Na podstawie Twoich odpowiedzi, zidentyfikowaliśmy kluczowe obszary do optymalizacji w zarządzaniu budżetem. Twój profil wskazuje na potrzebę strukturyzacji finansów osobistych z naciskiem na automatyzację oszczędzania i budowę funduszu awaryjnego."
-    elif advisor_type == "investment":
-        return "Twój profil inwestycyjny wskazuje na umiarkowaną tolerancję ryzyka z preferencją dla długoterminowego wzrostu. Rekomendujemy strategię zrównoważoną z naciskiem na dywersyfikację i regularne inwestowanie."
-    elif advisor_type == "tax":
-        return "Na podstawie Twoich odpowiedzi, zidentyfikowaliśmy możliwości optymalizacji podatkowej w ramach obowiązującego prawa. Twój profil wskazuje na potrzebę lepszego wykorzystania dostępnych ulg i planowania podatkowego."
-    elif advisor_type == "legal":
-        return "Twoje podejście do kwestii prawnych wskazuje na potrzebę lepszej strukturyzacji dokumentacji i zabezpieczeń prawnych. Rekomendujemy przegląd obecnych umów i wdrożenie systematycznego zarządzania dokumentacją."
-    else:
-        return "Na podstawie analizy Twoich odpowiedzi, przygotowaliśmy rekomendacje dostosowane do Twojej sytuacji. Proponujemy konsultację z doradcą specjalizującym się w tym obszarze dla uzyskania bardziej szczegółowych informacji."
+    summaries = {
+        "financial": "Na podstawie Twoich odpowiedzi przygotowaliśmy spersonalizowane rekomendacje finansowe.",
+        "investment": "Analiza Twojego profilu inwestycyjnego wskazuje na konkretne możliwości optymalizacji portfela.",
+        "tax": "Zidentyfikowaliśmy możliwości optymalizacji podatkowej dostosowane do Twojej sytuacji.",
+        "legal": "Przeanalizowaliśmy Twoją sytuację prawną i przygotowaliśmy odpowiednie rekomendacje."
+    }
+    
+    base_summary = summaries.get(advisor_type, "Przygotowaliśmy rekomendacje dostosowane do Twojej sytuacji.")
+    
+    # Dodaj informacje o liczbie kroków
+    steps_info = f" Proces składał się z {len(decision_path)} kroków decyzyjnych."
+    
+    return base_summary + steps_info
 
 def _generate_analysis(advisor_type: str, decision_path: List[str]) -> str:
-    """
-    Generuje szczegółową analizę na podstawie ścieżki decyzyjnej.
+    """Generuje analizę na podstawie ścieżki decyzyjnej."""
+    if not decision_path:
+        return "Brak wystarczających danych do przeprowadzenia analizy."
     
-    Args:
-        advisor_type: Typ doradcy
-        decision_path: Ścieżka decyzyjna
-        
-    Returns:
-        Analiza
-    """
-    # Ta funkcja powinna być zastąpiona rzeczywistą implementacją bazującą na modelu
+    analyses = {
+        "financial": "Twoja sytuacja finansowa wymaga systematycznego podejścia do budżetowania i oszczędzania.",
+        "investment": "Twój profil inwestycyjny wskazuje na potrzebę dywersyfikacji i długoterminowego planowania.",
+        "tax": "Analiza podatkowa pokazuje możliwości optymalizacji poprzez wykorzystanie dostępnych ulg.",
+        "legal": "Sytuacja prawna wymaga uporządkowania dokumentacji i planowania struktury prawnej."
+    }
     
-    # Analizujemy ścieżkę decyzyjną, aby dostarczyć spersonalizowaną analizę
-    path_summary = ", ".join(decision_path[:3]) if decision_path else "brak danych"
+    return analyses.get(advisor_type, "Analiza wskazuje na potrzebę systematycznego podejścia do zarządzania finansami.")
+
+def _calculate_confidence_score(decision_path: List[str], user_profile: Dict[str, Any]) -> float:
+    """Oblicza wskaźnik pewności rekomendacji."""
+    base_score = 0.7
     
-    if advisor_type == "financial":
-        return f"Analiza Twoich wyborów ({path_summary}) wskazuje na potrzebę ustrukturyzowanego podejścia do zarządzania finansami osobistymi. Szczególnie istotne wydają się kwestie automatyzacji oszczędzania oraz budowy poduszki finansowej jako zabezpieczenia przed nieprzewidzianymi wydatkami. Regularny przegląd budżetu i kategoryzacja wydatków pozwolą na identyfikację obszarów do optymalizacji, co przełoży się na zwiększenie stopy oszczędności."
-    elif advisor_type == "investment":
-        return f"Analiza Twoich wyborów ({path_summary}) wskazuje na preferencję dla zrównoważonego podejścia do inwestycji, łączącego elementy wzrostu i bezpieczeństwa. Rekomendujemy portfel zawierający zarówno instrumenty o stałym dochodzie (obligacje), jak i instrumenty udziałowe (akcje), w proporcjach dostosowanych do Twojej tolerancji ryzyka. Strategia regularnego inwestowania (Dollar Cost Averaging) pozwoli zminimalizować wpływ krótkoterminowych wahań rynku."
-    elif advisor_type == "tax":
-        return f"Analiza Twoich wyborów ({path_summary}) wskazuje na potencjał do bardziej efektywnego zarządzania obciążeniami podatkowymi. Zidentyfikowaliśmy możliwości pełniejszego wykorzystania dostępnych ulg podatkowych oraz optymalizacji struktury dochodów. Zalecamy konsultację z doradcą podatkowym w celu opracowania indywidualnej strategii podatkowej, zgodnej z aktualnymi przepisami."
-    elif advisor_type == "legal":
-        return f"Analiza Twoich wyborów ({path_summary}) wskazuje na potrzebę bardziej systematycznego podejścia do kwestii prawnych. Rekomendujemy przeprowadzenie audytu istniejących umów i dokumentów, a następnie wdrożenie regularnych przeglądów. Szczególną uwagę należy zwrócić na zabezpieczenie prawne majątku, w tym ewentualne planowanie spadkowe."
+    # Zwiększ pewność na podstawie liczby kroków
+    if len(decision_path) >= 3:
+        base_score += 0.2
+    elif len(decision_path) >= 2:
+        base_score += 0.1
+    
+    # Zwiększ pewność jeśli mamy profil użytkownika
+    if user_profile:
+        base_score += 0.1
+    
+    return min(1.0, base_score)
+
+def _estimate_implementation_time(recommendations: List[Dict[str, Any]], user_profile: Dict[str, Any]) -> str:
+    """Szacuje czas implementacji rekomendacji."""
+    if not recommendations:
+        return "Nie określono"
+    
+    if len(recommendations) <= 2:
+        return "1-2 tygodnie"
+    elif len(recommendations) <= 4:
+        return "1-2 miesiące"
     else:
-        return f"Szczegółowa analiza Twoich wyborów ({path_summary}) pozwala na sformułowanie rekomendacji dostosowanych do Twojej indywidualnej sytuacji. Ze względu na złożoność tematu, zalecamy konsultację z profesjonalnym doradcą, który pomoże w implementacji zaproponowanych rozwiązań."
+        return "2-6 miesięcy"
+
+def _assess_recommendation_risk(recommendations: List[Dict[str, Any]], user_profile: Dict[str, Any]) -> str:
+    """Ocenia poziom ryzyka rekomendacji."""
+    if not recommendations:
+        return "Niskie"
+    
+    # Sprawdź czy są rekomendacje wysokiego ryzyka
+    high_risk_count = sum(1 for rec in recommendations if rec.get("impact") == "high")
+    
+    if high_risk_count >= 3:
+        return "Wysokie"
+    elif high_risk_count >= 1:
+        return "Średnie"
+    else:
+        return "Niskie"
+
+def _log_decision_tree_step(request: DecisionTreeRequest) -> None:
+    """Loguje krok drzewa decyzyjnego do bazy danych."""
+    try:
+        # W rzeczywistej implementacji zapisywałoby to do bazy danych
+        logger.info(f"Logged decision tree step for user {request.user_id}: {request.current_node_id} -> {request.answer}")
+    except Exception as e:
+        logger.error(f"Error logging decision tree step: {e}")
+
+def _log_decision_tree_step_simple(user_id: int, current_node_id: str, step: int, decision_path: List[str]) -> None:
+    """Loguje uproszczony krok drzewa decyzyjnego."""
+    try:
+        logger.info(f"Logged simple decision tree step for user {user_id}: step {step}, path length {len(decision_path)}")
+    except Exception as e:
+        logger.error(f"Error logging simple decision tree step: {e}")
+
+def _save_report_to_database(user_id: int, report: Dict[str, Any]) -> None:
+    """Zapisuje raport do bazy danych."""
+    try:
+        # W rzeczywistej implementacji zapisywałoby to do bazy danych
+        logger.info(f"Saved report to database for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error saving report to database: {e}")

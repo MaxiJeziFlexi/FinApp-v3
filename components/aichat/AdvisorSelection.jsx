@@ -1,6 +1,8 @@
 import React from 'react';
 import { Paper, Box, Typography, Button, Chip } from '@mui/material';
 import { ArrowForward, Check, Save, TrendingUp } from '@mui/icons-material';
+import FinancialProgressChart from './FinancialProgressChart';
+import { mapGoalToName } from './constants';
 
 const AdvisorSelection = ({ ADVISORS, setCurrentAdvisor, userProfile, showChart, toggleChart, COLORS, goalAmount }) => (
   <Paper
@@ -69,7 +71,7 @@ const AdvisorSelection = ({ ADVISORS, setCurrentAdvisor, userProfile, showChart,
               {advisor.description}
             </Typography>
             <Typography variant="body2" sx={{ color: COLORS.secondary, fontStyle: 'italic' }}>
-              Cel: {advisor.goal}
+              Cel: {mapGoalToName(advisor.goal)}
             </Typography>
           </Box>
 

@@ -7,14 +7,13 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Jeśli użytkownik jest zalogowany, przekieruj go na dashboard
+    // Jeśli użytkownik jest zalogowany, przekieruj go na analytics (główny dashboard z AI chat)
     if (typeof window !== 'undefined') {
       const isLoggedIn = localStorage.getItem('isLoggedIn');
       if (isLoggedIn === 'true') {
         router.replace('/analytics');
       }
-      // Nie przekierowujemy na login jeśli użytkownik nie jest zalogowany
-      // Po prostu pokazujemy komponent Start
+      // Niezalogowany użytkownik zobaczy komponent Start (ekran powitalny)
     }
   }, [router]);
 
