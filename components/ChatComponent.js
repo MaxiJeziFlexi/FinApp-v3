@@ -1,88 +1,58 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import ChatWindow from './aichat/ChatWindow';
 
-/**
- * ChatComponent: A chat interface that connects to the /api/ai endpoint.
- * It handles sending user messages, displays responses and errors, and shows a loading state.
- */
-const ChatComponent = () => {
+const ChatComponent = ({ currentAdvisor, setChatVisible, COLORS }) => {
   const [messages, setMessages] = useState([]);
-  const [userInput, setUserInput] = useState('');
+  const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [isListening, setIsListening] = useState(false);
 
-  const sendMessage = async () => {
-    if (!userInput.trim()) return; // Avoid sending empty messages
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) return;
     setLoading(true);
-    setError(null);
 
-    // Append the user message to conversation immediately
-    const newMessages = [...messages, { role: 'user', content: userInput }];
-    setMessages(newMessages);
+    const updatedMessages = [...messages, { role: 'user', content: newMessage }];
+    setMessages(updatedMessages);
 
     try {
-      const response = await axios.post('/api/ai', {
-        messages: newMessages
-      }, {
-        timeout: 30000
+      const response = await axios.post('/api/chat', {
+        user_id: 'user123', // Replace with actual user ID
+        question: newMessage,
+        context: {
+          chat_history: updatedMessages
+        }
       });
 
-      // Handle the AI response
-      const aiReply = response.data.data;
-      
-      // Append the AI response to messages
-      setMessages([...newMessages, { role: 'assistant', content: aiReply }]);
-    } catch (err) {
-      console.error('Error sending chat message:', err);
-      setError(err.response?.data?.error || 'Error sending message. Please try again.');
+      setMessages([...updatedMessages, { role: 'assistant', content: response.data.reply }]);
+    } catch (error) {
+      console.error('Error sending chat message:', error);
+      // Handle error (e.g., show an error message to the user)
     } finally {
-      setUserInput('');
+      setNewMessage('');
       setLoading(false);
     }
   };
 
+  // Implement these functions based on your speech recognition logic
+  const startListening = () => setIsListening(true);
+  const stopListening = () => setIsListening(false);
+
   return (
-    <div className="p-4 border rounded-md shadow-md bg-white">
-      <h2 className="text-xl font-bold mb-4">Chat with AI</h2>
-      
-      <div className="mb-4 h-64 overflow-y-auto p-2 border rounded">
-        {messages.map((msg, index) => (
-          <div key={index} className={msg.role === "assistant" ? "text-blue-600 mb-2" : "text-gray-800 mb-2"}>
-            <strong>{msg.role}: </strong>
-            <span>{msg.content}</span>
-          </div>
-        ))}
-        {loading && <div className="text-gray-500 italic">AI is thinking...</div>}
-      </div>
-      
-      {error && (
-        <div className="mb-2 text-red-600">
-          {error}
-          <button onClick={() => setError(null)} className="ml-2 font-bold hover:text-red-800">
-            ✕
-          </button>
-        </div>
-      )}
-      
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={userInput}
-          onChange={(e) => setUserInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && !loading && sendMessage()}
-          placeholder="Type your message..."
-          className="flex-1 p-2 border rounded"
-          disabled={loading}
-        />
-        <button
-          onClick={sendMessage}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-        >
-          {loading ? "Sending..." : "Send"}
-        </button>
-      </div>
-    </div>
+    <ChatWindow
+      currentAdvisor={currentAdvisor}
+      chatMessages={messages}
+      newMessage={newMessage}
+      setNewMessage={setNewMessage}
+      isListening={isListening}
+      startListening={startListening}
+      stopListening={stopListening}
+      speechRecognitionSupported={true} // Set this based on browser support
+      handleSendMessage={handleSendMessage}
+      loading={loading}
+      setChatVisible={setChatVisible}
+      COLORS={COLORS}
+    />
   );
 };
 

@@ -6,7 +6,7 @@ const FinancialProgressChart = ({ financialData, goalAmount, COLORS }) => {
   const chartData = {
     labels: financialData.map(entry => entry.date),
     datasets: [
-      { label: 'Oszczędności', data: financialData.map(entry => entry.amount), borderColor: COLORS.primary, backgroundColor: 'rgba(0, 168, 150, 0.1)', fill: true, tension: 0.4 },
+      { label: 'Oszczędności', data: financialData.map(entry => entry.amount), borderColor: COLORS.secondary, backgroundColor: 'rgba(0, 168, 150, 0.1)', fill: true, tension: 0.4 },
       { label: 'Cel', data: Array(financialData.length).fill(goalAmount), borderColor: COLORS.primary, borderDash: [5, 5], backgroundColor: 'rgba(0, 0, 0, 0)', fill: false }
     ]
   };

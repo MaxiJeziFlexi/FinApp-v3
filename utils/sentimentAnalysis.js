@@ -14,7 +14,7 @@ import axios from 'axios';
 // import { logError } from './securityLogger'; // Comment out if securityLogger doesn't exist
 
 // API endpoint for primary sentiment analysis
-const SENTIMENT_API_URL = process.env.REACT_APP_SENTIMENT_API_URL || 'http://localhost:5000/api/sentiment';
+const SENTIMENT_API_URL = process.env.REACT_APP_SENTIMENT_API_URL || 'http://localhost:3000/api/specialized-advice.js';
 
 // Polish financial sentiment dictionaries (simplified version)
 const POLISH_POSITIVE_FINANCIAL_TERMS = [

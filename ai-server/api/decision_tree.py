@@ -286,6 +286,177 @@ async def get_user_recommendations(user_id: int):
             detail=f"Błąd pobierania rekomendacji: {str(e)}"
         )
 
+async def get_initial_questions(advisor_id: str):
+    """
+    GET endpoint do inicjalizacji decision tree dla advisor
+    Zwraca początkowe pytania dla danego doradcy
+    """
+    try:
+        logger.info(f"Getting initial questions for advisor: {advisor_id}")
+        
+        # Mapowanie advisor_id na goal_type
+        goal_type = _map_advisor_id_to_type(advisor_id)
+        
+        # Utwórz żądanie dla tree_model z początkowym węzłem
+        tree_request = DecisionTreeRequest(
+            user_id=1,  # Domyślny user_id dla inicjalizacji
+            current_node_id="root",
+            answer=None,
+            context={"advisor_type": goal_type, "advisor_id": advisor_id}
+        )
+        
+        # Przetwórz początkowy krok używając tree_model
+        response = decision_tree.process_step(tree_request)
+        
+        # Zwróć opcje w formacie oczekiwanym przez frontend
+        if response and response.node and response.node.options:
+            return {
+                "questions": response.node.options,
+                "node_id": response.node.id,
+                "question_text": response.node.question,
+                "advisor_type": goal_type,
+                "advisor_id": advisor_id
+            }
+        else:
+            # Fallback options jeśli tree_model nie zwrócił opcji
+            fallback_options = _generate_fallback_initial_options(advisor_id, goal_type)
+            return {
+                "questions": fallback_options,
+                "node_id": "root",
+                "question_text": "Jak możemy Ci pomóc w osiągnięciu Twojego celu finansowego?",
+                "advisor_type": goal_type,
+                "advisor_id": advisor_id,
+                "is_fallback": True
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting initial questions for advisor {advisor_id}: {e}")
+        
+        # Zwróć podstawowe opcje fallback
+        goal_type = _map_advisor_id_to_type(advisor_id)
+        fallback_options = _generate_fallback_initial_options(advisor_id, goal_type)
+        
+        return {
+            "questions": fallback_options,
+            "node_id": "root",
+            "question_text": "Jak możemy Ci pomóc w osiągnięciu Twojego celu finansowego?",
+            "advisor_type": goal_type,
+            "advisor_id": advisor_id,
+            "is_fallback": True,
+            "error": str(e)
+        }
+
+def _generate_fallback_initial_options(advisor_id: str, goal_type: str) -> List[Dict[str, Any]]:
+    """Generuje opcje fallback dla inicjalizacji decision tree"""
+    
+    # Opcje bazowe dla różnych typów doradców
+    if goal_type == "financial" or advisor_id == "budget_planner":
+        return [
+            {
+                "id": "timeframe_short",
+                "text": "W ciągu 6 miesięcy",
+                "value": "short",
+                "question": "W jakim czasie chcesz osiągnąć swój cel finansowy?"
+            },
+            {
+                "id": "timeframe_medium", 
+                "text": "W ciągu roku",
+                "value": "medium",
+                "question": "W jakim czasie chcesz osiągnąć swój cel finansowy?"
+            },
+            {
+                "id": "timeframe_long",
+                "text": "W ciągu 1-2 lat",
+                "value": "long", 
+                "question": "W jakim czasie chcesz osiągnąć swój cel finansowy?"
+            }
+        ]
+    elif goal_type == "investment" or advisor_id == "optimization_advisor":
+        return [
+            {
+                "id": "risk_low",
+                "text": "Niskie ryzyko, stabilne zyski",
+                "value": "low_risk",
+                "question": "Jaki poziom ryzyka inwestycyjnego preferujesz?"
+            },
+            {
+                "id": "risk_medium",
+                "text": "Średnie ryzyko, zrównoważony portfel",
+                "value": "medium_risk",
+                "question": "Jaki poziom ryzyka inwestycyjnego preferujesz?"
+            },
+            {
+                "id": "risk_high",
+                "text": "Wysokie ryzyko, potencjalnie wysokie zyski",
+                "value": "high_risk",
+                "question": "Jaki poziom ryzyka inwestycyjnego preferujesz?"
+            }
+        ]
+    elif advisor_id == "savings_strategist":
+        return [
+            {
+                "id": "goal_emergency",
+                "text": "Fundusz awaryjny",
+                "value": "emergency_fund",
+                "question": "Jaki jest Twój główny cel oszczędnościowy?"
+            },
+            {
+                "id": "goal_home",
+                "text": "Zakup nieruchomości",
+                "value": "home_purchase",
+                "question": "Jaki jest Twój główny cel oszczędnościowy?"
+            },
+            {
+                "id": "goal_vacation",
+                "text": "Wakacje lub podróże",
+                "value": "vacation",
+                "question": "Jaki jest Twój główny cel oszczędnościowy?"
+            }
+        ]
+    elif advisor_id == "execution_expert":
+        return [
+            {
+                "id": "debt_credit_card",
+                "text": "Karty kredytowe i chwilówki",
+                "value": "credit_card",
+                "question": "Jaki rodzaj zadłużenia chcesz spłacić?"
+            },
+            {
+                "id": "debt_consumer",
+                "text": "Kredyty konsumpcyjne",
+                "value": "consumer_loan",
+                "question": "Jaki rodzaj zadłużenia chcesz spłacić?"
+            },
+            {
+                "id": "debt_mortgage",
+                "text": "Kredyt hipoteczny",
+                "value": "mortgage",
+                "question": "Jaki rodzaj zadłużenia chcesz spłacić?"
+            }
+        ]
+    else:
+        # Domyślne opcje
+        return [
+            {
+                "id": "option_conservative",
+                "text": "Podejście konserwatywne",
+                "value": "conservative",
+                "question": "Jakie podejście do zarządzania finansami preferujesz?"
+            },
+            {
+                "id": "option_balanced",
+                "text": "Podejście zrównoważone",
+                "value": "balanced",
+                "question": "Jakie podejście do zarządzania finansami preferujesz?"
+            },
+            {
+                "id": "option_aggressive",
+                "text": "Podejście agresywne",
+                "value": "aggressive",
+                "question": "Jakie podejście do zarządzania finansami preferujesz?"
+            }
+        ]
+
 # Helper functions
 def _map_goal_to_advisor_type(goal_type: str) -> str:
     """Mapuje typ celu na typ doradcy."""
