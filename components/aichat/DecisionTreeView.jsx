@@ -1,378 +1,522 @@
 import React from 'react';
-import { Paper, Box, Typography, IconButton, LinearProgress, Stepper, Step, StepLabel, StepContent, Button, Divider, CircularProgress } from '@mui/material';
-import { ArrowBack, Settings, Help, EmojiEvents, ArrowForward, Refresh } from '@mui/icons-material';
-import { mapGoalToName } from './constants';
+import {
+  Box,
+  Typography,
+  Paper,
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  LinearProgress,
+  CircularProgress,
+  IconButton,
+  Divider,
+  Stepper,
+  Step,
+  StepLabel,
+  StepContent,
+  Chip,
+  Tooltip as MuiTooltip
+} from '@mui/material';
+import {
+  ArrowBack,
+  Settings,
+  Help,
+  ArrowForward,
+  EmojiEvents,
+  Refresh
+} from '@mui/icons-material';
+import jsPDF from 'jspdf';
 
-const DecisionTreeView = ({ 
-  currentAdvisor, 
-  changeAdvisor, 
-  toggleAdvancedMode, 
-  advancedMode, 
-  progressValue, 
-  decisionPath, 
-  finalRecommendation, 
-  decisionOptions, 
-  loading, 
-  handleDecisionSelect, 
-  toggleChat, 
-  generatePDF,
-  COLORS 
+// Helper functions
+const mapGoalToName = (goal) => {
+  const mapping = {
+    emergency_fund: 'funduszu awaryjnego',
+    debt_reduction: 'redukcji zadłużenia',
+    home_purchase: 'zakupu nieruchomości',
+    retirement: 'zabezpieczenia emerytalnego',
+    education: 'finansowania edukacji',
+    vacation: 'wakacji'
+  };
+  return mapping[goal] || 'celu finansowego';
+};
+
+const getDecisionLabel = (decision, idx, advisor) => {
+  return decision.title || `Krok ${idx + 1}`;
+};
+
+const getDecisionDescription = (decision, idx) => {
+  return decision.description || decision.value;
+};
+
+const DecisionTreeView = ({
+  currentAdvisor,
+  currentStep,
+  decisionPath,
+  decisionOptions = [],
+  progressValue,
+  loading,
+  finalRecommendation,
+  userProfile,
+  advancedMode,
+  handleDecisionSelect,
+  handleDecisionBack = () => {},
+  changeAdvisor,
+  toggleAdvancedMode,
+  setChatVisible,
+  backToDecisionTree,
+  COLORS
 }) => {
-  
-  // Helper functions for decision tree visualization
-  const getDecisionLabel = (decision, index) => {
-    if (index === 0) {
-      const advisor = currentAdvisor;
-      if (advisor) {
-        return `Wybór celu: ${mapGoalToName(advisor.goal)}`;
-      }
-      return 'Wybór celu finansowego';
+  const generatePDF = () => {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(20);
+    doc.text('Raport Finansowy', 20, 30);
+    
+    // Add advisor info
+    doc.setFontSize(14);
+    doc.text(`Doradca: ${currentAdvisor?.name}`, 20, 50);
+    doc.text(`Cel: ${mapGoalToName(currentAdvisor?.goal)}`, 20, 65);
+    
+    // Add recommendation summary
+    if (finalRecommendation?.summary) {
+      doc.setFontSize(12);
+      doc.text('Podsumowanie:', 20, 85);
+      const splitSummary = doc.splitTextToSize(finalRecommendation.summary, 170);
+      doc.text(splitSummary, 20, 100);
     }
     
-    const decision_text = decisionOptions.find(opt => opt.id === decision.selection)?.text;
-    if (decision_text) {
-      return decision_text;
+    // Add steps if available
+    if (finalRecommendation?.actionPlan) {
+      let yPosition = 130;
+      doc.text('Następne kroki:', 20, yPosition);
+      yPosition += 15;
+      
+      finalRecommendation.actionPlan.forEach((step, index) => {
+        const stepText = `${index + 1}. ${step}`;
+        const splitStep = doc.splitTextToSize(stepText, 170);
+        doc.text(splitStep, 20, yPosition);
+        yPosition += splitStep.length * 5 + 5;
+      });
     }
     
-    const goalType = currentAdvisor?.goal || 'emergency_fund';
-    switch(goalType) {
-      case 'emergency_fund':
-        if (index === 1) return 'Wybór okresu czasu';
-        if (index === 2) return 'Wybór wielkości funduszu';
-        if (index === 3) return 'Wybór metody oszczędzania';
-        break;
-      case 'debt_reduction':
-        if (index === 1) return 'Wybór rodzaju zadłużenia';
-        if (index === 2) return 'Wybór kwoty zadłużenia';
-        if (index === 3) return 'Wybór strategii spłaty';
-        break;
-      case 'home_purchase':
-        if (index === 1) return 'Wybór okresu czasu';
-        if (index === 2) return 'Wybór wkładu własnego';
-        if (index === 3) return 'Wybór budżetu';
-        break;
-      case 'retirement':
-        if (index === 1) return 'Wybór wieku emerytalnego';
-        if (index === 2) return 'Wybór obecnego etapu kariery';
-        if (index === 3) return 'Wybór formy oszczędzania';
-        break;
-    }
-    
-    return `Krok ${index + 1}`;
+    doc.save('raport_finansowy.pdf');
   };
 
-  const getDecisionDescription = (decision, index) => {
-    const selection = decision.selection;
-    
-    const descriptions = {
-      'short': 'Krótki okres czasu',
-      'medium': 'Średni okres czasu',
-      'long': 'Długi okres czasu',
-      'very_long': 'Bardzo długi okres czasu',
-      'three': '3 miesiące wydatków',
-      'six': '6 miesięcy wydatków',
-      'twelve': '12 miesięcy wydatków',
-      'automatic': 'Automatyczne odkładanie stałej kwoty',
-      'percentage': 'Odkładanie procentu dochodów',
-      'surplus': 'Odkładanie nadwyżek z budżetu',
-      'credit_card': 'Karty kredytowe i chwilówki',
-      'consumer': 'Kredyty konsumpcyjne',
-      'mortgage': 'Kredyt hipoteczny',
-      'multiple': 'Różne zobowiązania',
-      'avalanche': 'Metoda lawiny (najwyższe oprocentowanie)',
-      'snowball': 'Metoda kuli śnieżnej (najmniejsze kwoty)',
-      'consolidation': 'Konsolidacja zadłużenia',
-      'ten': '10% wkładu własnego',
-      'twenty': '20% wkładu własnego',
-      'thirty_plus': '30% lub więcej wkładu własnego',
-      'full': 'Zakup w 100% za gotówkę',
-      'small': 'Mała kwota',
-      'medium': 'Średnia kwota',
-      'large': 'Duża kwota',
-      'very_large': 'Bardzo duża kwota',
-      'early': 'Wcześniejsza emerytura',
-      'standard': 'Standardowy wiek emerytalny',
-      'late': 'Pó��niejsza emerytura',
-      'mid': 'Środkowy etap kariery',
-      'ike_ikze': 'IKE/IKZE',
-      'investment': 'Własne inwestycje długoterminowe',
-      'real_estate': 'Nieruchomości na wynajem',
-      'combined': 'Strategia łączona'
-    };
-    
-    return descriptions[selection] || `Wybór: ${selection}`;
-  };
-
-  return (
-    <Paper elevation={3} sx={{ 
-      p: 4, 
-      maxWidth: 800, 
-      margin: '0 auto', 
-      backgroundColor: COLORS.lightBackground, 
-      borderRadius: '16px', 
-      boxShadow: '0 8px 24px rgba(0,0,0,0.1)' 
-    }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box display="flex" alignItems="center">
-          <Box sx={{ 
-            width: 50, 
-            height: 50, 
-            borderRadius: '50%', 
-            backgroundColor: COLORS.primary, 
-            color: 'white', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            fontSize: '1.5rem', 
-            mr: 2 
-          }}>
-            {currentAdvisor.icon}
+  // Final recommendation view
+  if (finalRecommendation) {
+    return (
+      <Paper sx={{ p: 4, borderRadius: 3 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Box display="flex" alignItems="center">
+            <Box
+              sx={{
+                width: 50,
+                height: 50,
+                borderRadius: '50%',
+                backgroundColor: COLORS.primary,
+                color: 'white',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                fontSize: '1.5rem',
+                mr: 2
+              }}
+            >
+              {currentAdvisor.icon}
+            </Box>
+            <Box>
+              <Typography variant="h5" sx={{ color: COLORS.primary, fontWeight: 'bold' }}>
+                {currentAdvisor.name}
+              </Typography>
+              <Typography variant="body2" sx={{ color: COLORS.lightText }}>
+                Cel: {mapGoalToName(currentAdvisor.goal)}
+              </Typography>
+            </Box>
           </Box>
           <Box>
-            <Typography variant="h5" sx={{ color: COLORS.primary, fontWeight: 'bold' }}>
-              {currentAdvisor.name}
-            </Typography>
-            <Typography variant="body2" sx={{ color: COLORS.lightText }}>
-              Cel: {mapGoalToName(currentAdvisor.goal)}
-            </Typography>
+            <MuiTooltip title="Zmień doradcę">
+              <IconButton onClick={changeAdvisor} sx={{ color: COLORS.primary }}>
+                <ArrowBack />
+              </IconButton>
+            </MuiTooltip>
+            <MuiTooltip title={advancedMode ? 'Tryb standardowy' : 'Tryb zaawansowany'}>
+              <IconButton onClick={toggleAdvancedMode} sx={{ color: COLORS.primary }}>
+                <Settings />
+              </IconButton>
+            </MuiTooltip>
           </Box>
         </Box>
+
+        <Paper
+          elevation={2}
+          sx={{
+            p: 3,
+            mb: 4,
+            backgroundColor: '#f5f9ff',
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+          }}
+        >
+          <Typography variant="h6" gutterBottom sx={{ color: COLORS.primary, fontWeight: 'bold' }}>
+            🎉 Twój spersonalizowany plan finansowy jest gotowy!
+          </Typography>
+          <Typography variant="body1" paragraph sx={{ mb: 3 }}>
+            {finalRecommendation.summary}
+          </Typography>
+
+          {/* Action Plan */}
+          {Array.isArray(finalRecommendation.actionPlan) && (
+            <Box mt={3}>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', color: COLORS.primary }}>
+                📋 Plan działania:
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {finalRecommendation.actionPlan.map((step, index) => (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      backgroundColor: 'rgba(0, 168, 150, 0.05)',
+                      p: 2,
+                      borderRadius: '8px',
+                      border: '1px solid rgba(0, 168, 150, 0.2)'
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        minWidth: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        backgroundColor: COLORS.secondary,
+                        color: 'white',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        mr: 2,
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {index + 1}
+                    </Box>
+                    <Typography variant="body1">{step}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {/* Timeline */}
+          {Array.isArray(finalRecommendation.timeline) && (
+            <Box mt={3}>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', color: COLORS.primary }}>
+                ⏰ Harmonogram:
+              </Typography>
+              <Grid container spacing={2}>
+                {finalRecommendation.timeline.map((item, index) => (
+                  <Grid item xs={12} sm={6} md={4} key={index}>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        backgroundColor: 'rgba(15, 48, 87, 0.05)',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(15, 48, 87, 0.1)'
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: COLORS.primary }}>
+                        {item.period}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: COLORS.text }}>
+                        {item.task}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          )}
+        </Paper>
+
+        <Box mt={3} sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Button
+            variant="contained"
+            startIcon={<EmojiEvents />}
+            onClick={generatePDF}
+            sx={{
+              backgroundColor: COLORS.success,
+              '&:hover': { backgroundColor: '#388e3c' },
+              borderRadius: '8px',
+              px: 3
+            }}
+          >
+            Pobierz raport PDF
+          </Button>
+
+          <Button
+            variant="contained"
+            endIcon={<ArrowForward />}
+            onClick={() => setChatVisible(true)}
+            sx={{
+              backgroundColor: COLORS.secondary,
+              '&:hover': { backgroundColor: '#008f82' },
+              borderRadius: '8px',
+              px: 3
+            }}
+          >
+            Porozmawiaj z doradcą
+          </Button>
+
+          {backToDecisionTree && (
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBack />}
+              onClick={backToDecisionTree}
+              sx={{
+                borderColor: COLORS.primary,
+                color: COLORS.primary,
+                borderRadius: '8px',
+                px: 3
+              }}
+            >
+              Powrót do drzewa
+            </Button>
+          )}
+        </Box>
+      </Paper>
+    );
+  }
+
+  // Decision tree in-progress view
+  return (
+    <Paper sx={{ p: 4, borderRadius: 3 }}>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box display="flex" alignItems="center">
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              backgroundColor: COLORS.primary,
+              color: 'white',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              fontSize: '1.2rem',
+              mr: 2
+            }}
+          >
+            {currentAdvisor?.icon}
+          </Box>
+          <Typography variant="h5" sx={{ color: COLORS.primary, fontWeight: 'bold' }}>
+            {currentAdvisor?.name} – Drzewo decyzyjne
+          </Typography>
+        </Box>
         <Box>
-          <IconButton onClick={changeAdvisor} sx={{ color: COLORS.primary }}>
-            <ArrowBack />
-          </IconButton>
-          <IconButton onClick={toggleAdvancedMode} sx={{ color: COLORS.primary }}>
-            <Settings />
-          </IconButton>
+          <MuiTooltip title="Cofnij" arrow>
+            <IconButton onClick={handleDecisionBack} disabled={decisionPath.length === 0} sx={{ color: COLORS.primary }}>
+              <ArrowBack />
+            </IconButton>
+          </MuiTooltip>
+          <MuiTooltip title={advancedMode ? 'Tryb standardowy' : 'Tryb zaawansowany'}>
+            <IconButton onClick={toggleAdvancedMode} sx={{ color: COLORS.primary }}>
+              <Settings />
+            </IconButton>
+          </MuiTooltip>
         </Box>
       </Box>
 
+      {/* Progress */}
       <Box mb={4}>
-        <LinearProgress 
-          variant="determinate" 
-          value={progressValue} 
-          sx={{ 
-            height: 10, 
-            borderRadius: 5, 
-            backgroundColor: '#e0e0e0', 
-            '& .MuiLinearProgress-bar': { backgroundColor: COLORS.secondary } 
-          }} 
-        />
-        <Box display="flex" justifyContent="space-between" mt={1}>
-          <Typography variant="body2" color={COLORS.lightText}>Początek</Typography>
-          <Typography variant="body2" fontWeight="bold" color={COLORS.secondary}>
-            {`${Math.round(progressValue)}%`}
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+          <Typography variant="body2" sx={{ color: COLORS.text, fontWeight: 600 }}>
+            Postęp: {Math.round(progressValue)}%
           </Typography>
-          <Typography variant="body2" color={COLORS.lightText}>Cel</Typography>
+          <Typography variant="body2" sx={{ color: COLORS.lightText }}>
+            Krok {currentStep + 1} z 3
+          </Typography>
         </Box>
+        <LinearProgress
+          variant="determinate"
+          value={progressValue}
+          sx={{
+            height: 10,
+            borderRadius: 5,
+            backgroundColor: '#e0e0e0',
+            '& .MuiLinearProgress-bar': { 
+              backgroundColor: COLORS.secondary,
+              borderRadius: 5
+            }
+          }}
+        />
       </Box>
 
-      {decisionPath.length > 0 && !finalRecommendation && (
-        <Box mb={4}>
-          <Typography variant="subtitle1" sx={{ color: COLORS.primary, mb: 2, fontWeight: 'medium' }}>
-            Twoja ścieżka decyzji:
+      {/* Current Question Display */}
+      {decisionOptions.length > 0 && (
+        <Paper 
+          elevation={2}
+          sx={{
+            p: 3,
+            mb: 4,
+            backgroundColor: '#f5f9ff',
+            borderRadius: '12px',
+            borderLeft: `4px solid ${COLORS.primary}`
+          }}
+        >
+          <Typography variant="h6" gutterBottom sx={{ color: COLORS.primary, fontWeight: 'bold' }}>
+            Krok {currentStep + 1}: Wybierz najlepszą opcję
           </Typography>
-          <Stepper activeStep={decisionPath.length} orientation="vertical" sx={{ mb: 3 }}>
-            {decisionPath.map((decision, index) => (
-              <Step key={index} completed={index < decisionPath.length}>
+          <Typography variant="body1" sx={{ color: COLORS.text, lineHeight: 1.6 }}>
+            Wybierz opcję, która najlepiej pasuje do Twojej sytuacji finansowej i preferencji.
+          </Typography>
+        </Paper>
+      )}
+
+      {/* Advanced stepper */}
+      {advancedMode && decisionPath.length > 0 && (
+        <Box mb={4}>
+          <Typography variant="h6" gutterBottom sx={{ color: COLORS.primary, fontWeight: 'bold' }}>
+            Historia decyzji:
+          </Typography>
+          <Stepper activeStep={currentStep} orientation="vertical">
+            {decisionPath.map((decision, idx) => (
+              <Step key={idx} completed={idx < currentStep}>
                 <StepLabel>
-                  <Typography variant="body2" sx={{ 
-                    fontWeight: index === decisionPath.length - 1 ? 'bold' : 'normal' 
-                  }}>
-                    {getDecisionLabel(decision, index)}
-                  </Typography>
+                  {getDecisionLabel(decision, idx, currentAdvisor)}
                 </StepLabel>
                 <StepContent>
-                  <Typography variant="body2" sx={{ color: COLORS.lightText }}>
-                    {getDecisionDescription(decision, index)}
+                  <Typography variant="body2">
+                    {getDecisionDescription(decision, idx)}
                   </Typography>
                 </StepContent>
               </Step>
             ))}
-            {decisionOptions.length > 0 && (
-              <Step active>
-                <StepLabel>
-                  <Typography variant="body2" sx={{ fontWeight: 'medium', color: COLORS.primary }}>
-                    Obecny krok
-                  </Typography>
-                </StepLabel>
-              </Step>
-            )}
           </Stepper>
+          <Divider sx={{ my: 2 }} />
         </Box>
       )}
 
-      {finalRecommendation ? (
-        <Box>
-          <Paper elevation={2} sx={{ 
-            p: 3, 
-            mb: 4, 
-            backgroundColor: '#f5f9ff', 
-            borderRadius: '12px', 
-            boxShadow: '0 4px 12px rgba(0,0,0,0.05)' 
-          }}>
-            <Typography variant="h6" gutterBottom sx={{ color: COLORS.primary, fontWeight: 'bold' }}>
-              Twoje rekomendacje
-            </Typography>
-            <Typography variant="body1" paragraph sx={{ mb: 3 }}>
-              {finalRecommendation.summary}
-            </Typography>
-            
-            {finalRecommendation.steps && (
-              <Box mt={3}>
-                <Typography variant="subtitle1" gutterBottom sx={{ 
-                  fontWeight: 'bold', 
-                  color: COLORS.primary 
-                }}>
-                  Następne kroki:
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {finalRecommendation.steps.map((step, index) => (
-                    <Box 
-                      key={index} 
-                      sx={{ 
-                        display: 'flex', 
-                        alignItems: 'flex-start',
-                        backgroundColor: 'rgba(0, 168, 150, 0.05)',
-                        p: 2,
-                        borderRadius: '8px'
-                      }}
-                    >
-                      <Box 
-                        sx={{ 
-                          minWidth: 32,
-                          height: 32,
-                          borderRadius: '50%',
-                          backgroundColor: COLORS.secondary,
-                          color: 'white',
-                          display: 'flex',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          mr: 2,
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        {index + 1}
-                      </Box>
-                      <Typography variant="body1">{step}</Typography>
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-            )}
-          </Paper>
-
-          <Box mt={3} sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-            <Button
-              variant="contained"
-              startIcon={<EmojiEvents />}
-              onClick={generatePDF}
-              sx={{ 
-                backgroundColor: COLORS.success, 
-                '&:hover': { backgroundColor: '#388e3c' },
-                borderRadius: '8px',
-                px: 3
-              }}
-            >
-              Pobierz raport PDF
-            </Button>
-            
-            <Button 
-              variant="contained" 
-              endIcon={<ArrowForward />} 
-              onClick={toggleChat} 
-              sx={{ 
-                backgroundColor: COLORS.secondary, 
-                '&:hover': { backgroundColor: '#008f82' },
-                borderRadius: '8px',
-                px: 3
-              }}
-            >
-              Porozmawiaj z doradcą
-            </Button>
-          </Box>
-          
-          <Box display="flex" justifyContent="center" mt={3}>
-            <Button 
-              variant="outlined" 
-              startIcon={<Refresh />} 
-              onClick={changeAdvisor} 
-              sx={{ 
-                borderColor: COLORS.primary, 
-                color: COLORS.primary,
-                borderRadius: '8px'
-              }}
-            >
-              Zmień doradcę
-            </Button>
-          </Box>
+      {/* Options grid or loading */}
+      {loading ? (
+        <Box display="flex" flexDirection="column" alignItems="center" p={4}>
+          <CircularProgress sx={{ color: COLORS.secondary, mb: 2 }} />
+          <Typography variant="body2" sx={{ color: COLORS.lightText }}>
+            Ładowanie opcji decyzyjnych...
+          </Typography>
         </Box>
       ) : (
-        <Box>
-          {loading ? (
-            <Box display="flex" justifyContent="center" flexDirection="column" alignItems="center" p={4}>
-              <CircularProgress sx={{ color: COLORS.secondary, mb: 2 }} />
-              <Typography variant="body2" color={COLORS.lightText}>
-                Analizuję najlepsze opcje dla Twojego celu...
+        <>
+          <Grid container spacing={3}>
+            {(Array.isArray(decisionOptions) ? decisionOptions : []).map((option, idx) => (
+              <Grid item xs={12} sm={6} md={4} key={option.id}>
+                <Card
+                  sx={{ 
+                    cursor: 'pointer', 
+                    height: '100%',
+                    transition: 'all 0.3s ease',
+                    '&:hover': { 
+                      boxShadow: 6,
+                      transform: 'translateY(-4px)'
+                    },
+                    border: option.recommended ? `2px solid ${COLORS.secondary}` : '1px solid #e0e0e0',
+                    position: 'relative'
+                  }}
+                  onClick={() => handleDecisionSelect(idx)}
+                >
+                  {option.recommended && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: -1,
+                        right: -1,
+                        backgroundColor: COLORS.secondary,
+                        color: 'white',
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: '0 8px 0 8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      POLECANE
+                    </Box>
+                  )}
+                  
+                  <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h4" sx={{ mr: 2 }}>
+                        {option.icon}
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', color: COLORS.primary }}>
+                        {option.title}
+                      </Typography>
+                    </Box>
+                    
+                    <Typography variant="body2" sx={{ color: COLORS.lightText, flexGrow: 1, mb: 2 }}>
+                      {option.description}
+                    </Typography>
+                    
+                    {option.recommended && (
+                      <Chip 
+                        label={option.recommended} 
+                        size="small" 
+                        sx={{
+                          backgroundColor: COLORS.secondary,
+                          color: 'white',
+                          fontWeight: 'bold',
+                          alignSelf: 'flex-start'
+                        }}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+
+          {/* Help text */}
+          {decisionOptions.length > 0 && (
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Typography variant="caption" sx={{ color: COLORS.lightText }}>
+                💡 Wskazówka: Wybierz opcję, która najlepiej odpowiada Twojej sytuacji finansowej
               </Typography>
             </Box>
-          ) : (
-            <Box>
-              <Paper sx={{ 
-                p: 3, 
-                mb: 3, 
-                borderRadius: '12px', 
-                backgroundColor: 'rgba(15, 48, 87, 0.03)', 
-                borderLeft: `4px solid ${COLORS.primary}` 
-              }}>
-                <Typography variant="body1" paragraph fontWeight="medium">
-                  {decisionOptions.length > 0 ? decisionOptions[0].question : 'Ładowanie opcji...'}
-                </Typography>
-              </Paper>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {decisionOptions.map((option, index) => (
-                  <Button
-                    key={index}
-                    fullWidth
-                    variant="outlined"
-                    onClick={() => handleDecisionSelect(index)}
-                    sx={{ 
-                      p: 2, 
-                      justifyContent: 'flex-start', 
-                      textAlign: 'left', 
-                      borderColor: '#e0e0e0', 
-                      color: COLORS.text, 
-                      borderRadius: '8px', 
-                      transition: 'all 0.2s ease', 
-                      position: 'relative', 
-                      '&:hover': { 
-                        transform: 'translateX(5px)', 
-                        borderColor: COLORS.secondary, 
-                        backgroundColor: 'rgba(0, 168, 150, 0.05)' 
-                      } 
-                    }}
-                  >
-                    {option.text}
-                  </Button>
-                ))}
-              </Box>
-              {advancedMode && (
-                <Box mt={4}>
-                  <Divider sx={{ mb: 2 }} />
-                  <Button 
-                    variant="text" 
-                    startIcon={<Help />} 
-                    onClick={toggleChat} 
-                    sx={{ color: COLORS.primary }}
-                  >
-                    Potrzebuję dodatkowych informacji
-                  </Button>
-                </Box>
-              )}
-            </Box>
           )}
-        </Box>
+        </>
       )}
+
+      {/* Navigation buttons */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+        <Button
+          variant="outlined"
+          startIcon={<ArrowBack />}
+          onClick={changeAdvisor}
+          sx={{
+            borderColor: COLORS.primary,
+            color: COLORS.primary,
+            borderRadius: '8px'
+          }}
+        >
+          Zmień doradcę
+        </Button>
+
+        {decisionPath.length > 0 && (
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={handleDecisionBack}
+            sx={{
+              borderColor: COLORS.secondary,
+              color: COLORS.secondary,
+              borderRadius: '8px'
+            }}
+          >
+            Cofnij ostatni wybór
+          </Button>
+        )}
+      </Box>
     </Paper>
   );
 };

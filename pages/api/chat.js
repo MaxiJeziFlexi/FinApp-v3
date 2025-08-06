@@ -7,14 +7,9 @@ export default async function handler(req, res) {
   if (req.method === "POST") {
     try {
       // Forward the request to your FastAPI backend
-      const response = await axios.post(
-        `${API_URL}/api/chat`,
-        req.body,
-        {
-          headers: { "Content-Type": "application/json" },
-          timeout: 30000,
-        }
-      );
+     const response = await axios.post('/api/chat', data, {
+      timeout: 30000 // 30 seconds timeout
+    });
       return res.status(response.status).json(response.data);
     } catch (error) {
       console.error("Error in /api/chat:", error.message);

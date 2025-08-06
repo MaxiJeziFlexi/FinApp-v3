@@ -11,23 +11,37 @@ JWT_SECRET = os.getenv("JWT_SECRET", "supersekretnyklucz")
 JWT_ALGORITHM = "HS256"
 JWT_EXP_DELTA_MINUTES = 60  # Token ważny przez 60 minut
 
-router = APIRouter()
+# Inicjalizacja routera
+auth_router = APIRouter(tags=["Authentication"])
 
+# Modele danych
 class RegistrationInput(BaseModel):
     username: str
     email: str
     password: str
 
+    class Config:
+        from_attributes = True
+
 class LoginInput(BaseModel):
     username: str
     password: str
+
+    class Config:
+        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-@router.post("/register", tags=["Authentication"])
+    class Config:
+        from_attributes = True
+
+@auth_router.post("/register")
 async def register(data: RegistrationInput):
+    """
+    Endpoint do rejestracji nowego użytkownika.
+    """
     try:
         # Hashowanie hasła
         hashed_password = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -45,8 +59,11 @@ async def register(data: RegistrationInput):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/login", response_model=Token, tags=["Authentication"])
+@auth_router.post("/login", response_model=Token)
 async def login(data: LoginInput):
+    """
+    Endpoint do logowania użytkownika i generowania tokenu JWT.
+    """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -72,8 +89,10 @@ async def login(data: LoginInput):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Funkcja pomocnicza do weryfikacji tokenu
 def get_current_user(request: Request):
+    """
+    Weryfikuje token JWT z nagłówka Authorization.
+    """
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
@@ -84,12 +103,10 @@ def get_current_user(request: Request):
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-# Dodana funkcja: sprawdzenie, czy bieżący użytkownik jest administratorem
 def get_current_admin(current_user=Depends(get_current_user)):
     """
-    Verify if the current user has admin privileges
+    Weryfikuje, czy bieżący użytkownik ma uprawnienia administratora.
     """
-    # Get user role from database based on user_id from token
     try:
         user_id = current_user["user_id"]
         conn = get_db_connection()

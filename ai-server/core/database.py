@@ -12,11 +12,11 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Wyświetl zmienne środowiskowe dla debugowania
-print("DB_HOST:", os.getenv('DB_HOST'))
-print("DB_NAME:", os.getenv('DB_NAME'))
-print("DB_USER:", os.getenv('DB_USER'))
-print("DB_PASSWORD:", os.getenv('DB_PASSWORD'))
-print("DB_PORT:", os.getenv('DB_PORT', '5432'))
+logger.info(f"DB_HOST: {os.getenv('DB_HOST')}")
+logger.info(f"DB_NAME: {os.getenv('DB_NAME')}")
+logger.info(f"DB_USER: {os.getenv('DB_USER')}")
+logger.info(f"DB_PASSWORD: {os.getenv('DB_PASSWORD')}")
+logger.info(f"DB_PORT: {os.getenv('DB_PORT', '5432')}")
 
 # Globalna pula połączeń
 db_pool = None
@@ -43,7 +43,10 @@ def get_db():
     """Pobiera połączenie z puli i zwraca je w kontekście."""
     connection = None
     try:
+        if db_pool is None:
+            raise Exception("Database pool is not initialized")
         connection = db_pool.getconn()
+        logger.debug("Obtained database connection from pool")
         yield connection
     except Exception as e:
         logger.error(f"Error with database connection: {e}")
@@ -51,6 +54,7 @@ def get_db():
     finally:
         if connection:
             db_pool.putconn(connection)
+            logger.debug("Returned database connection to pool")
 
 get_db_connection = get_db  # Alias dla kompatybilności
 
@@ -63,12 +67,14 @@ def get_db_cursor(commit: bool = True):
             yield cursor
             if commit:
                 connection.commit()
+                logger.debug("Database transaction committed")
         except Exception as e:
             connection.rollback()
             logger.error(f"Database query error: {e}")
             raise
         finally:
             cursor.close()
+            logger.debug("Database cursor closed")
 
 def init_db():
     """Tworzy tabele w bazie jeśli nie istnieją."""
@@ -108,6 +114,17 @@ def init_db():
                 goals JSONB NOT NULL DEFAULT '[]',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS decision_tree_progress (
+                user_id VARCHAR NOT NULL,
+                advisor_id VARCHAR NOT NULL,
+                decision_path JSONB,
+                completed BOOLEAN DEFAULT FALSE,
+                progress INTEGER DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT NOW(),
+                PRIMARY KEY (user_id, advisor_id)
             )
             """)
             logger.info("Database tables initialized successfully")

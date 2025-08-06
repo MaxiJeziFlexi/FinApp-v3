@@ -13,7 +13,7 @@ This project combines an Express backend and a Next.js frontend.
    ```bash
    node server.js
    ```
-   The backend runs on port `4001`.
+   The backend runs on port '8000`.
 
 3. **Run the frontend**
    ```bash
@@ -21,4 +21,4 @@ This project combines an Express backend and a Next.js frontend.
    ```
    The Next.js app typically runs on port `3000`.
 
-Open `http://localhost:3000` in your browser and the frontend will communicate with the backend on port `4001`.
+Open `http://localhost:3000` in your browser and the frontend will communicate with the backend on port `8000`.

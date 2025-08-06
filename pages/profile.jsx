@@ -8,10 +8,10 @@ const Profile = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const username = localStorage.getItem("username") || "admin";
-    console.log("Logged-in username:", username);
+    const userId = localStorage.getItem("userId") || "1"; // Default to "1" for testing
+    console.log("Fetching profile for userId:", userId);
 
-x    fetch("http://localhost:8000/api/profile")
+    fetch(`http://localhost:8000/api/user/profile/${userId}`)
       .then((response) => {
         if (!response.ok) {
           throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
@@ -20,22 +20,21 @@ x    fetch("http://localhost:8000/api/profile")
       })
       .then((data) => {
         console.log("Fetched profile data:", data);
-
-        const loggedUser = data.find((user) => user.Username === username);
-
-        if (!loggedUser) {
-          throw new Error("User not found.");
-        }
-
-        setProfile(loggedUser);
+        setProfile(data);
         setFormData({
-          ID: loggedUser.ID,
-          FirstName: loggedUser.FirstName || "N/A",
-          LastName: loggedUser.LastName || "N/A",
-          PhoneNumber: loggedUser.PhoneNumber || "",
-          Address: loggedUser.Address || "",
-          Preferences: loggedUser.Preferences || "",
-          img: loggedUser.img || "/images/default-avatar.png", // Placeholder image
+          id: data.id,
+          name: data.name || "",
+          financialGoal: data.financialGoal || "",
+          timeframe: data.timeframe || "",
+          currentSavings: data.currentSavings || "",
+          monthlyIncome: data.monthlyIncome || "",
+          targetAmount: data.targetAmount || "",
+          onboardingComplete: data.onboardingComplete || false,
+          is_premium: data.is_premium || false,
+          progress: data.progress || 0,
+          achievements: data.achievements || [],
+          consents: data.consents || {},
+          financialData: data.financialData || []
         });
         setLoading(false);
       })
@@ -47,12 +46,14 @@ x    fetch("http://localhost:8000/api/profile")
   }, []);
 
   const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSave = () => {
     setLoading(true);
-    fetch(`http://localhost:8000/api/profile/${formData.ID}`, {
+    const userId = formData.id;
+    fetch(`http://localhost:8000/api/user/profile/${userId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
@@ -63,7 +64,8 @@ x    fetch("http://localhost:8000/api/profile")
         }
         return response.json();
       })
-      .then(() => {
+      .then((updatedProfile) => {
+        setProfile(updatedProfile);
         alert("Profile updated successfully!");
         setLoading(false);
       })
@@ -90,74 +92,88 @@ x    fetch("http://localhost:8000/api/profile")
       <div className="bg-white dark:bg-night-blue shadow-md rounded-lg p-6">
         <div className="mb-4">
           <label className="block text-slate-600 dark:text-slate-400 text-sm font-bold mb-2">
-            First Name
+            Name
           </label>
           <input
             type="text"
-            name="FirstName"
-            value={formData.FirstName}
+            name="name"
+            value={formData.name}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter first name"
+            placeholder="Enter name"
           />
         </div>
         <div className="mb-4">
           <label className="block text-slate-600 dark:text-slate-400 text-sm font-bold mb-2">
-            Last Name
+            Financial Goal
           </label>
           <input
             type="text"
-            name="LastName"
-            value={formData.LastName}
+            name="financialGoal"
+            value={formData.financialGoal}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter last name"
+            placeholder="Enter financial goal"
           />
         </div>
         <div className="mb-4">
           <label className="block text-slate-600 dark:text-slate-400 text-sm font-bold mb-2">
-            Phone Number
+            Timeframe
           </label>
           <input
             type="text"
-            name="PhoneNumber"
-            value={formData.PhoneNumber}
+            name="timeframe"
+            value={formData.timeframe}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter phone number"
+            placeholder="Enter timeframe"
           />
         </div>
         <div className="mb-4">
           <label className="block text-slate-600 dark:text-slate-400 text-sm font-bold mb-2">
-            Address
+            Current Savings
           </label>
           <input
             type="text"
-            name="Address"
-            value={formData.Address}
+            name="currentSavings"
+            value={formData.currentSavings}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter address"
+            placeholder="Enter current savings"
           />
         </div>
         <div className="mb-4">
           <label className="block text-slate-600 dark:text-slate-400 text-sm font-bold mb-2">
-            Preferences
+            Monthly Income
           </label>
           <input
             type="text"
-            name="Preferences"
-            value={formData.Preferences}
+            name="monthlyIncome"
+            value={formData.monthlyIncome}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter preferences"
+            placeholder="Enter monthly income"
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-slate-600 dark:text-slate-400 text-sm font-bold mb-2">
+            Target Amount
+          </label>
+          <input
+            type="text"
+            name="targetAmount"
+            value={formData.targetAmount}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter target amount"
           />
         </div>
         <button
           onClick={handleSave}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
+          disabled={loading}
         >
-          Save
+          {loading ? "Saving..." : "Save"}
         </button>
       </div>
     </div>

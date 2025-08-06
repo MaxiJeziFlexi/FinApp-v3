@@ -17,9 +17,9 @@ function MyApp({ Component, pageProps }) {
         return false;
       }
     }
-    return false;
+    return false; // Fallback dla SSR
   });
-  const [userData, setUserData] = useState([]);
+  const [userData, setUserData] = useState(null); // Zmiana na obiekt zamiast tablicy
 
   // Zapisuj zmianę trybu ciemnego w localStorage
   useEffect(() => {
@@ -32,8 +32,29 @@ function MyApp({ Component, pageProps }) {
     }
   }, [isDarkMode]);
 
+  // Pobierz dane użytkownika po zalogowaniu (np. po sprawdzeniu userId)
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const userId = localStorage.getItem('userId'); // Zakładam, że userId jest zapisywany po logowaniu
+      if (userId && typeof window !== 'undefined') {
+        try {
+          const response = await fetch(`/api/user-profile/${userId}`);
+          if (response.ok) {
+            const data = await response.json();
+            setUserData(data);
+          } else {
+            console.error('Failed to fetch user data');
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        }
+      }
+    };
+    fetchUserData();
+  }, [router.pathname]); // Ponowne pobieranie przy zmianie trasy
+
   const toggleDarkMode = useCallback(() => {
-    setIsDarkMode(prevMode => !prevMode);
+    setIsDarkMode((prevMode) => !prevMode);
   }, []);
 
   // Sprawdź, czy to strona logowania, rejestracji lub start
@@ -41,21 +62,23 @@ function MyApp({ Component, pageProps }) {
 
   return (
     <div className={isDarkMode ? 'dark' : ''}>
-      <DataContext.Provider value={{
-        navIsOpen,
-        setNavIsOpen,
-        isDarkMode,
-        toggleDarkMode,
-        userData,
-        setUserData
-      }}>
+      <DataContext.Provider
+        value={{
+          navIsOpen,
+          setNavIsOpen,
+          isDarkMode,
+          toggleDarkMode,
+          userData,
+          setUserData,
+        }}
+      >
         {isAuthPage ? (
           // Renderuj tylko komponent bez layoutu dla stron autoryzacji
           <Component {...pageProps} />
         ) : (
           // Renderuj komponent z layoutem dla pozostałych stron
           <Layout>
-            <Component {...pageProps} />
+            <Component {...pageProps} userData={userData} /> {/* Przekazanie userData do komponentów */}
           </Layout>
         )}
       </DataContext.Provider>
